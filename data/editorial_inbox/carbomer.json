@@ -1,0 +1,13 @@
+{
+"what_it_does": "Thickens and stabilizes gels, creams, and lotions while improving texture and spreadability.",
+"summary_short": "Carbomer is a synthetic gelling polymer used mainly to give skincare products a smooth gel texture and help suspend ingredients evenly. It is not usually an active skin-benefit ingredient itself; its value is mostly in formula structure and feel.",
+"summary_long": "Carbomer refers to cross-linked acrylic acid polymers that swell in water and form a gel network after neutralization. In skincare, this makes formulas thicker, smoother, and better able to hold particles or active ingredients evenly in suspension.\n\nThe best direct evidence here is formulation-focused rather than skin-outcome-focused. A rheology study found carbomer gels made with water, propylene glycol, glycerin, and triethanolamine were stable across pH 5.0–8.0 and showed useful gel behavior for topical bases [PMID:unknown]. This supports carbomer’s role as a texture, viscosity, and delivery-system ingredient.\n\nCarbomer can also act as a hydrogel base for actives. In a 2024 study, carbomer 940 was cross-linked with ferulic acid at 5%, 10%, and 15%; the benefits observed were tied mainly to the ferulic acid hydrogel system, not carbomer alone [PMID:unknown]. Another study explored carbomer 940 as a carrier for plasma-activated hydrogels, again suggesting usefulness as a delivery matrix rather than as a standalone skincare active [PMID:unknown].\n\nTypical cosmetic use levels are often low because carbomers thicken efficiently, but the provided abstracts do not give standard skincare concentration ranges for ordinary products. One abstract does mention ferulic acid hydrogel systems at 5%, 10%, and 15%, but those percentages refer to the active hydrogel formulation being studied, not routine carbomer use.\n\nSafety-wise, the provided abstracts do not report major irritation concerns for carbomer itself. In finished products, irritation risk is more likely to depend on the full formula, pH adjustment, preservatives, solvents, and active ingredients. Carbomer commonly appears with water, humectants such as glycerin or propylene glycol, and neutralizers such as triethanolamine; it may be less suitable in formulas where electrolytes, low pH, or incompatible actives disrupt gel structure.",
+"quick_facts": [
+"Synthetic gelling polymer",
+"Mainly a texture ingredient",
+"Helps suspend ingredients evenly",
+"Often neutralized to form gels",
+"Common in gel creams and serums",
+"Evidence is mostly formulation-focused"
+]
+}

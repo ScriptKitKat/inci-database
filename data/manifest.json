@@ -1,0 +1,28 @@
+{
+  "obf_taxonomy": {
+    "source_url": "https://raw.githubusercontent.com/openfoodfacts/openfoodfacts-server/main/taxonomies/beauty/ingredients-cosing-obf.txt",
+    "file": "ingredients-cosing-obf.txt",
+    "size_bytes_approx": 11320963,
+    "sha256": null,
+    "fetched_at": null,
+    "notes": "Open Beauty Facts ingredients taxonomy, cross-referenced against CosIng. Refresh weekly. Sanity floor: should yield >= 21,740 ingredients after parse."
+  },
+  "obf_inci_functions": {
+    "source_url": "https://raw.githubusercontent.com/openfoodfacts/openfoodfacts-server/main/taxonomies/beauty/inci_functions.txt",
+    "file": "inci_functions.txt",
+    "size_bytes_approx": 127089,
+    "notes": "INCI function definitions (humectant, emollient, etc). Optional reference for stage 6 classification."
+  },
+  "open_beauty_facts_dump": {
+    "source_url": "https://world.openbeautyfacts.org/data",
+    "file": "openbeautyfacts-products.jsonl.gz",
+    "sha256": null,
+    "fetched_at": null,
+    "notes": "Bulk JSONL product dump. Refreshed nightly upstream; weekly snapshot is enough for our use."
+  },
+  "wikidata": {
+    "source_url": "https://query.wikidata.org/sparql",
+    "file": null,
+    "notes": "Queried live by stage 1b (enrich_wikidata). No local file."
+  }
+}

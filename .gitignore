@@ -1,0 +1,13 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+pipeline/dist/
+pipeline/build/
+pipeline/*.egg-info/
+data/raw/*
+!data/raw/.gitkeep
+data/unmatched_tokens.csv
+.DS_Store

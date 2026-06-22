@@ -1,0 +1,13 @@
+{
+  "what_it_does": "UVB sunscreen filter that helps protect skin from sunburn-causing rays.",
+  "summary_short": "Homosalate is a chemical sunscreen filter used mainly for UVB protection. It can be absorbed into the bloodstream after heavy sunscreen use, but that finding does not mean people should stop using sunscreen.",
+  "summary_long": "Homosalate is an organic sunscreen filter used to absorb UVB radiation, the part of sunlight most closely linked with sunburn. In formulas, it is usually combined with other UV filters because it does not provide broad UVA/UVB protection on its own.\n\nHuman evidence shows that homosalate can be systemically absorbed. In a randomized clinical trial of 48 healthy adults, several sunscreen products were applied under high-use conditions, and homosalate blood levels exceeded the FDA’s 0.5 ng/mL threshold used to decide whether more safety testing may be needed [PMID:unknown]. The study authors emphasized that these findings do not mean people should stop using sunscreen.\n\nSafety research on homosalate includes lab and animal-model concerns around hormone-related activity. A 2024 in vitro study found effects on thyroid-related gene expression and cytotoxicity at high concentrations or long exposures in thyroid cell models [PMID:unknown]. These findings are useful for safety evaluation, but they do not directly show the same effects from normal sunscreen use on human skin.\n\nIrritation is not the main concern highlighted in the provided evidence, though rash was the most common adverse event in the human absorption study. As with any sunscreen, people with sensitive skin or a history of reactions may prefer patch testing or choosing a mineral-filter sunscreen.\n\nHomosalate is commonly paired with other sunscreen filters such as avobenzone, octocrylene, octisalate, or octinoxate to improve overall UV coverage and formula performance. It should not be treated as a stand-alone broad-spectrum sunscreen active.",
+  "quick_facts": [
+    "Chemical UVB sunscreen filter",
+    "Usually paired with other UV filters",
+    "Can be absorbed after heavy sunscreen use",
+    "Not broad-spectrum on its own",
+    "Rash was reported in one sunscreen-use study",
+    "Sensitive skin may prefer patch testing"
+  ]
+}

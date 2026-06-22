@@ -1,0 +1,13 @@
+{
+  "what_it_does": "Preservative that helps prevent yeast, mold, and bacterial growth in formulas.",
+  "summary_short": "Potassium sorbate is mainly used as a preservative to help keep cosmetics and skincare products from spoiling. It is generally used for formula protection rather than direct skin benefits, and it may sting or irritate sensitive areas in some products.",
+  "summary_long": "Potassium sorbate is the potassium salt of sorbic acid, a widely used preservative. In skincare, its main job is to slow the growth of microbes—especially yeast and mold—so a product stays usable and safer throughout its shelf life.\n\nIts preservative activity is tied to sorbic acid chemistry and tends to be more relevant in mildly acidic formulas. A kinetic study found that sorbate can react slowly under acidic conditions, with alkylation times ranging from about 18 days at pH 5.2 to more than a month at pH 6 or higher [PMID:unknown]. For consumers, the practical takeaway is that potassium sorbate is part of the formula’s preservation system, not an active ingredient meant to brighten, exfoliate, or moisturize skin.\n\nThe skincare-specific evidence is limited. Much of the available research looks at food preservation, chemistry, or non-cosmetic uses rather than topical leave-on skincare. A 1992 review discussed the genotoxicity status of sorbic acid and sorbate salts, but the abstract does not provide enough detail to draw practical skincare conclusions [PMID:unknown].\n\nPotassium sorbate can be associated with stinging in some contexts. In an eye-drop comfort survey, a timolol maleate product containing potassium sorbate caused more burning/stinging and tearing on instillation than timolol hemihydrate [PMID:unknown]. Eye products are not the same as facial skincare, but this suggests that sorbate-containing formulas may feel irritating on very sensitive skin, around the eyes, or on a damaged skin barrier.\n\nIt is commonly used alongside other preservatives because potassium sorbate alone may not provide broad enough protection for every formula. It is most relevant in water-containing products such as creams, lotions, gels, and serums. There are no major skincare ingredient conflicts for consumers to plan around; irritation risk depends more on the full formula, product pH, concentration, and skin condition.",
+  "quick_facts": [
+    "Used mainly as a preservative",
+    "Helps protect water-based formulas",
+    "More active in acidic formulas",
+    "Not a skin-benefit active",
+    "May sting sensitive skin or eye area",
+    "Often paired with other preservatives"
+  ]
+}
