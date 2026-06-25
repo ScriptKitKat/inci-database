@@ -110,3 +110,27 @@ def dedupe_preserve_order(items: Iterable[str]) -> list[str]:
             seen.add(it)
             out.append(it)
     return out
+
+
+def normalize_brand(name: str) -> str:
+    """UPPER + TRIM brand dedup key. Mirrors brands.normalized."""
+    return name.strip().upper()
+
+
+def first_brand(brands_field: str | None) -> str | None:
+    """OBF `brands` is comma-separated; take the primary brand."""
+    if not brands_field or not brands_field.strip():
+        return None
+    return brands_field.split(",")[0].strip()
+
+
+def generate_fingerprint(ingredient_tokens: list[str]) -> str:
+    """Deterministic hash of ordered INCI tokens for dedup heuristics."""
+    normalized = [t.strip().upper() for t in ingredient_tokens if t.strip()]
+    combined = "|".join(normalized)
+    return hashlib.sha256(combined.encode("utf-8")).hexdigest()
+
+
+def product_slug(brand_name: str, product_name: str, seen_slugs: set[str]) -> str:
+    """Stable URL slug scoped by brand to reduce name collisions."""
+    return slug_with_fallback(f"{brand_name} {product_name}", seen_slugs)
