@@ -14,12 +14,15 @@ from ..db import client
 from ..sources.ingredient_verification import (
     OBFIngredientLookup,
     PubChemNameLookup,
+    SourceLookupConfig,
     WikidataNameLookup,
     incidecoder_lookup,
     specialchem_lookup,
 )
 
 log = logging.getLogger(__name__)
+
+TERMINAL_QUEUE_STATUSES = ("applied", "kept", "pending_human", "failed")
 
 
 def queue_window(since: datetime, until: datetime) -> int:
@@ -90,6 +93,53 @@ def apply(run_id: UUID) -> list[str]:
         )
         messages.append(str(res.data))
     return messages
+
+
+def clear_terminal_queue(
+    *,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    page_size: int = 500,
+) -> int:
+    ingredient_ids: set[str] | None = None
+    if since and until:
+        ingredient_ids = _fetch_ingredient_ids_created_between(since, until)
+        if not ingredient_ids:
+            return 0
+
+    deleted = 0
+    if ingredient_ids is not None:
+        for chunk in _chunks(list(ingredient_ids), page_size):
+            rows = (
+                client()
+                .table("ingredient_name_curation_queue")
+                .select("id")
+                .in_("queue_status", list(TERMINAL_QUEUE_STATUSES))
+                .in_("ingredient_id", chunk)
+                .execute()
+            ).data or []
+            if not rows:
+                continue
+            ids = [row["id"] for row in rows]
+            client().table("ingredient_name_curation_queue").delete().in_("id", ids).execute()
+            deleted += len(ids)
+        return deleted
+
+    while True:
+        rows = (
+            client()
+            .table("ingredient_name_curation_queue")
+            .select("id, ingredient_id")
+            .in_("queue_status", list(TERMINAL_QUEUE_STATUSES))
+            .limit(page_size)
+            .execute()
+        ).data or []
+        if not rows:
+            return deleted
+
+        ids = [row["id"] for row in rows]
+        client().table("ingredient_name_curation_queue").delete().in_("id", ids).execute()
+        deleted += len(ids)
 
 
 def _process_candidate(
@@ -172,14 +222,17 @@ def _process_candidate(
 def _source_clients() -> list[Any]:
     s = settings()
     clients: list[Any] = [OBFIngredientLookup(s.obf_taxonomy_path)]
-    clients.extend(
-        [
-            PubChemNameLookup(),
-            WikidataNameLookup(),
-            specialchem_lookup(),
-            incidecoder_lookup(),
-        ]
+    source_config = SourceLookupConfig(
+        max_retry_after_seconds=s.ingredient_lookup_max_retry_after_seconds,
     )
+    if s.ingredient_lookup_enable_pubchem:
+        clients.append(PubChemNameLookup(config=source_config))
+    if s.ingredient_lookup_enable_wikidata:
+        clients.append(WikidataNameLookup(config=source_config))
+    if s.ingredient_lookup_enable_specialchem:
+        clients.append(specialchem_lookup(config=source_config))
+    if s.ingredient_lookup_enable_incidecoder:
+        clients.append(incidecoder_lookup(config=source_config))
     return clients
 
 
@@ -337,6 +390,35 @@ def _fetch_existing_ingredients(page_size: int = 1000) -> list[dict[str, Any]]:
         if len(batch) < page_size:
             return rows
         offset += page_size
+
+
+def _fetch_ingredient_ids_created_between(
+    since: datetime,
+    until: datetime,
+    page_size: int = 1000,
+) -> set[str]:
+    ids: set[str] = set()
+    offset = 0
+    while True:
+        res = (
+            client()
+            .table("ingredients")
+            .select("id")
+            .gte("created_at", since.isoformat())
+            .lt("created_at", until.isoformat())
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        batch = res.data or []
+        ids.update(row["id"] for row in batch)
+        if len(batch) < page_size:
+            return ids
+        offset += page_size
+
+
+def _chunks(items: list[str], size: int) -> Iterable[list[str]]:
+    for index in range(0, len(items), size):
+        yield items[index : index + size]
 
 
 def _fetch_source_verified_ingredient_ids(page_size: int = 1000) -> set[UUID]:

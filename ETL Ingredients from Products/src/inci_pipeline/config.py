@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     ingredient_judge_poll_interval_seconds: int = 30
     ingredient_judge_poll_timeout_seconds: int = 3600
 
+    ingredient_lookup_enable_pubchem: bool = True
+    ingredient_lookup_enable_wikidata: bool = False
+    ingredient_lookup_enable_specialchem: bool = True
+    ingredient_lookup_enable_incidecoder: bool = True
+    ingredient_lookup_max_retry_after_seconds: float = 10.0
+
     data_dir: Path = Field(default=Path("../data/raw"))
     obf_taxonomy_file: str = "ingredients-cosing-obf.txt"
 

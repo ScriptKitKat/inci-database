@@ -4,11 +4,15 @@ import json
 from typing import Any
 from uuid import UUID
 
+import certifi
+import httpx
 from anthropic import Anthropic
 
 from ..config import settings
 from ..db import client
 from .decisions import parse_llm_decision, review_status_for
+
+ANTHROPIC_CUSTOM_ID_MAX_LENGTH = 64
 
 
 def submit_batch(
@@ -39,7 +43,7 @@ def submit_batch(
     requests = []
     db_items = []
     for item in items:
-        custom_id = f"ingredient_candidate:{item['candidate_id']}"
+        custom_id = _candidate_custom_id(item["candidate_id"])
         payload = _request_payload(
             item,
             model=model,
@@ -57,17 +61,23 @@ def submit_batch(
             }
         )
 
-    anthropic_batch = _anthropic().messages.batches.create(requests=requests)
-    anthropic_batch_id = _get(anthropic_batch, "id")
-    client().table("ingredient_llm_batch_items").insert(db_items).execute()
-    client().table("ingredient_llm_batches").update(
-        {
-            "anthropic_batch_id": anthropic_batch_id,
-            "status": "submitted",
-            "submitted_at": _now_iso(),
-            "raw_payload": _to_jsonable(anthropic_batch),
-        }
-    ).eq("id", local_batch_id).execute()
+    try:
+        anthropic_batch = _anthropic().messages.batches.create(requests=requests)
+        anthropic_batch_id = _get(anthropic_batch, "id")
+        client().table("ingredient_llm_batch_items").insert(db_items).execute()
+        client().table("ingredient_llm_batches").update(
+            {
+                "anthropic_batch_id": anthropic_batch_id,
+                "status": "submitted",
+                "submitted_at": _now_iso(),
+                "raw_payload": _to_jsonable(anthropic_batch),
+            }
+        ).eq("id", local_batch_id).execute()
+    except Exception as exc:
+        client().table("ingredient_llm_batches").update(
+            {"status": "failed", "error": str(exc)}
+        ).eq("id", local_batch_id).execute()
+        raise
     return str(anthropic_batch_id)
 
 
@@ -149,6 +159,29 @@ def retrieve_batch(anthropic_batch_id: str) -> dict[str, Any]:
         }
     ).eq("id", local_batch_id).execute()
     return {"status": status, "processed": processed, "errored": errored}
+
+
+def latest_submitted_batch_id(run_id: UUID) -> str | None:
+    rows = (
+        client()
+        .table("ingredient_llm_batches")
+        .select("anthropic_batch_id, status, submitted_at, created_at")
+        .eq("run_id", str(run_id))
+        .in_("status", ["submitted", "processing"])
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    ).data or []
+    if not rows:
+        return None
+    return rows[0].get("anthropic_batch_id")
+
+
+def _candidate_custom_id(candidate_id: str | UUID) -> str:
+    custom_id = f"ingredient_candidate_{candidate_id}"
+    if len(custom_id) > ANTHROPIC_CUSTOM_ID_MAX_LENGTH:
+        raise ValueError(f"Anthropic batch custom_id is too long: {custom_id}")
+    return custom_id
 
 
 def _pending_items(run_id: UUID) -> list[dict[str, Any]]:
@@ -268,7 +301,10 @@ def _anthropic() -> Anthropic:
     s = settings()
     if not s.anthropic_api_key:
         raise RuntimeError("ANTHROPIC_API_KEY not set")
-    return Anthropic(api_key=s.anthropic_api_key)
+    return Anthropic(
+        api_key=s.anthropic_api_key,
+        http_client=httpx.Client(verify=certifi.where()),
+    )
 
 
 def _get(obj: Any, key: str) -> Any:

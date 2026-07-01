@@ -1,3 +1,4 @@
+import re
 from uuid import UUID
 
 from inci_pipeline.config import settings
@@ -6,7 +7,7 @@ from inci_pipeline.curation.decisions import (
     parse_llm_decision,
     review_status_for,
 )
-from inci_pipeline.curation.llm_batch import _request_payload
+from inci_pipeline.curation.llm_batch import _candidate_custom_id, _request_payload
 from inci_pipeline.curation.models import IngredientEvidence
 
 
@@ -112,3 +113,9 @@ def test_request_payload_uses_settings_defaults_when_not_overridden():
     assert payload["model"] == s.ingredient_judge_model
     assert payload["temperature"] == s.ingredient_judge_temperature
     assert payload["max_tokens"] == s.ingredient_judge_max_tokens
+
+
+def test_candidate_custom_id_matches_anthropic_batch_pattern():
+    custom_id = _candidate_custom_id(SOURCE_ID)
+    assert re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", custom_id)
+    assert custom_id == f"ingredient_candidate_{SOURCE_ID}"
