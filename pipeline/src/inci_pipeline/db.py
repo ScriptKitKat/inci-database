@@ -58,6 +58,11 @@ def client() -> Client:
     return create_client(s.supabase_url, s.supabase_service_role_key)
 
 
+def reset_client() -> None:
+    """Drop the cached Supabase client so long import runs open a fresh connection."""
+    client.cache_clear()
+
+
 def _chunked(items: Sequence[Any], size: int) -> Iterable[Sequence[Any]]:
     for i in range(0, len(items), size):
         yield items[i : i + size]
@@ -145,6 +150,132 @@ def stream_ingredients_with_cas(page_size: int = 1000) -> Iterable[dict[str, Any
         if len(rows) < page_size:
             return
         offset += page_size
+
+
+def fetch_normalized_match_terms(page_size: int = 1000) -> set[str]:
+    """Return normalized ingredient and alias terms for label tokenization.
+
+    The product importer uses this to segment malformed all-caps labels that
+    omit commas, preferring the longest known INCI/alias phrase.
+    """
+    terms: set[str] = set()
+    offset = 0
+    while True:
+        res = (
+            client()
+            .table("ingredients")
+            .select("normalized_name")
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        rows = res.data or []
+        for row in rows:
+            if row.get("normalized_name"):
+                terms.add(row["normalized_name"])
+        if len(rows) < page_size:
+            break
+        offset += page_size
+
+    offset = 0
+    while True:
+        res = (
+            client()
+            .table("ingredient_aliases")
+            .select("normalized_alias")
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        rows = res.data or []
+        for row in rows:
+            if row.get("normalized_alias"):
+                terms.add(row["normalized_alias"])
+        if len(rows) < page_size:
+            break
+        offset += page_size
+    return terms
+
+
+def fetch_exact_match_index(page_size: int = 1000) -> dict[str, UUID]:
+    """Return a normalized token -> ingredient id index for fast product imports."""
+    index: dict[str, UUID] = {}
+    offset = 0
+    while True:
+        res = (
+            client()
+            .table("ingredients")
+            .select("id, normalized_name")
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        rows = res.data or []
+        for row in rows:
+            if row.get("normalized_name"):
+                index.setdefault(row["normalized_name"], UUID(row["id"]))
+        if len(rows) < page_size:
+            break
+        offset += page_size
+
+    offset = 0
+    while True:
+        res = (
+            client()
+            .table("ingredient_aliases")
+            .select("ingredient_id, normalized_alias")
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        rows = res.data or []
+        for row in rows:
+            if row.get("normalized_alias"):
+                index.setdefault(row["normalized_alias"], UUID(row["ingredient_id"]))
+        if len(rows) < page_size:
+            break
+        offset += page_size
+    return index
+
+
+def fetch_existing_product_slugs(page_size: int = 1000) -> set[str]:
+    """Return product slugs that already have ingredient rows.
+
+    Interrupted imports can leave a product row behind before its ingredients
+    are inserted. Those slugs are intentionally not skipped on resume.
+    """
+    product_ids_with_ingredients: set[str] = set()
+    offset = 0
+    while True:
+        res = (
+            client()
+            .table("product_ingredients")
+            .select("product_id")
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        rows = res.data or []
+        for row in rows:
+            if row.get("product_id"):
+                product_ids_with_ingredients.add(row["product_id"])
+        if len(rows) < page_size:
+            break
+        offset += page_size
+
+    slugs: set[str] = set()
+    offset = 0
+    while True:
+        res = (
+            client()
+            .table("products")
+            .select("id, slug")
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        rows = res.data or []
+        for row in rows:
+            if row.get("id") in product_ids_with_ingredients and row.get("slug"):
+                slugs.add(row["slug"])
+        if len(rows) < page_size:
+            break
+        offset += page_size
+    return slugs
 
 
 def _fetch_curated_ids() -> list[UUID]:

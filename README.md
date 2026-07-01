@@ -85,7 +85,7 @@ inci-pipeline match "salycilic acid"   # typo, should still hit Salicylic Acid
 | 4   | pubmed | `ingredients` | `ingredient_sources` (abstracts) |
 | 5   | editorial | `ingredient_sources` | `ingredient_content` (draft) |
 | 6   | classify | `ingredients.function_tags` | `ingredients.skin_type_tag`, `ingredients.concern_tag` |
-| 7   | products | OBF dump | `products`, `product_ingredients` |
+| 7   | products | OBF dump | `brands`, `products`, `product_ingredients` |
 
 All stages are idempotent — re-run with `--force` to bypass the last-success guard.
 
