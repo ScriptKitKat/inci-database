@@ -35,5 +35,6 @@ export type DetailData = {
   submission: Submission;
   tokens: SubmissionToken[];
   trigger: string | null;
+  approvedSourceDomain: string | null;
   similarProduct: { id: string; name: string; brand: string } | null;
 };

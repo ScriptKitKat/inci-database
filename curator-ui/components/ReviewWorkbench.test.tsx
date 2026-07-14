@@ -6,12 +6,14 @@ import { ReviewWorkbench } from "./ReviewWorkbench";
 import type { DetailData } from "@/lib/types";
 
 const actions = vi.hoisted(() => ({
+  approveDomain: vi.fn().mockResolvedValue({ ok: true, result: "brand.example" }),
   resolve: vi.fn().mockResolvedValue({ ok: true }),
   approve: vi.fn().mockResolvedValue({ ok: true, result: "approved" }),
   reject: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
 vi.mock("@/app/actions", () => ({
+  approveProductSourceDomainAction: actions.approveDomain,
   resolveTokenAction: actions.resolve,
   approveSubmissionAction: actions.approve,
   rejectSubmissionAction: actions.reject,
@@ -50,11 +52,27 @@ function detail(position = 1): DetailData {
       evidence: [],
     }],
     trigger: "junk_at_top_positions",
+    approvedSourceDomain: null,
     similarProduct: null,
   };
 }
 
 describe("ReviewWorkbench token controls", () => {
+  it("adds the verified website to the brand allowlist without approving the product", async () => {
+    const initial = detail();
+    initial.submission.verification = {
+      verdict: "untrusted_source",
+      source_url: "https://www.brand.example/products/serum",
+    };
+    render(<ReviewWorkbench initial={initial}><div>Header</div></ReviewWorkbench>);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add website to approved list" }));
+
+    await waitFor(() => expect(actions.approveDomain).toHaveBeenCalledWith("submission-1"));
+    expect(screen.getByText("Website approved for this brand")).toBeInTheDocument();
+    expect(actions.approve).not.toHaveBeenCalled();
+  });
+
   it("offers only the three supported curator resolutions", () => {
     render(<ReviewWorkbench initial={detail()}><div>Header</div></ReviewWorkbench>);
     expect(screen.getByRole("option", { name: "Matched" })).toBeInTheDocument();

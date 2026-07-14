@@ -10,6 +10,7 @@ import {
   setCuratorSession,
   verifyPassword,
 } from "@/lib/auth";
+import { sourceHostname } from "@/lib/domains";
 import { remoteIngredientClient, serviceClient } from "@/lib/supabase";
 
 type Result = {
@@ -120,6 +121,45 @@ export async function approveSubmissionAction(id: string): Promise<Result> {
   }
   revalidatePath("/");
   return { ok: true, result: String(data) };
+}
+
+export async function approveProductSourceDomainAction(id: string): Promise<Result> {
+  const session = await requireCuratorSession();
+  const db = serviceClient();
+  const { data: submission, error: submissionError } = await db
+    .from("product_submissions")
+    .select("brand_name, status, verification")
+    .eq("id", id)
+    .maybeSingle();
+  if (submissionError || !submission) {
+    return { ok: false, error: submissionError?.message || "Submission not found." };
+  }
+  const verification = submission.verification as Record<string, unknown>;
+  if (submission.status !== "pending_human" || verification.verdict !== "untrusted_source") {
+    return { ok: false, error: "This submission is not awaiting an untrusted-source review." };
+  }
+  const domain = sourceHostname(verification.source_url);
+  if (!domain) return { ok: false, error: "The verification source is not a valid HTTPS website." };
+
+  const normalizedBrand = submission.brand_name.trim().toUpperCase();
+  if (!normalizedBrand) return { ok: false, error: "The submission has no brand name." };
+  const { error } = await db
+    .from("brand_product_domains")
+    .upsert(
+      { normalized_brand_name: normalizedBrand, domain },
+      { onConflict: "normalized_brand_name,domain", ignoreDuplicates: true },
+    );
+  if (error) return { ok: false, error: error.message };
+
+  const { error: auditError } = await db.from("submission_audit").insert({
+    submission_id: id,
+    action: "approve_product_domain",
+    actor: session.displayName,
+    payload: { brand_name: submission.brand_name, domain },
+  });
+  if (auditError) return { ok: false, error: auditError.message };
+  revalidatePath(`/submissions/${id}`);
+  return { ok: true, result: domain };
 }
 
 export async function rejectSubmissionAction(id: string, reason: string): Promise<Result> {
