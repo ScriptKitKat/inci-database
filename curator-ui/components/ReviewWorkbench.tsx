@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  approveProductSourceDomainAction,
   approveSubmissionAction,
   rejectSubmissionAction,
   resolveTokenAction,
 } from "@/app/actions";
+import { sourceHostname } from "@/lib/domains";
 import { canApprove, triggerLabel } from "@/lib/review";
 import type { DetailData, SubmissionToken } from "@/lib/types";
 
@@ -19,9 +21,11 @@ export function ReviewWorkbench({ initial, children }: { initial: DetailData; ch
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [approveConfirmed, setApproveConfirmed] = useState(false);
+  const [approvedSourceDomain, setApprovedSourceDomain] = useState(initial.approvedSourceDomain);
   const [rejectOpen, setRejectOpen] = useState(false);
   const verification = initial.submission.verification;
   const verdict = String(verification.verdict || "");
+  const sourceDomain = sourceHostname(verification.source_url);
   const needsApproveWarning = ["divergent", "not_found", "untrusted_source", "no_list", "similar_product", "same_name_different_formula", "name_resolved"].includes(verdict);
 
   useEffect(() => {
@@ -68,6 +72,14 @@ export function ReviewWorkbench({ initial, children }: { initial: DetailData; ch
     router.push("/"); router.refresh();
   }
 
+  async function approveSourceDomain() {
+    setSaving("domain"); setError(null);
+    const result = await approveProductSourceDomainAction(initial.submission.id);
+    setSaving(null);
+    if (!result.ok) { setError(result.error || "Could not approve this website."); return; }
+    setApprovedSourceDomain(result.result || null);
+  }
+
   return (
     <>
       {error && <div className="error-banner" role="alert">{error}</div>}
@@ -84,6 +96,21 @@ export function ReviewWorkbench({ initial, children }: { initial: DetailData; ch
 
       {initial.similarProduct && (
         <section className="warning"><p className="eyebrow">Catalog similarity</p><h2>{initial.similarProduct.brand} — {initial.similarProduct.name}</h2><p>{verdict === "similar_product" ? "The formulas overlap by at least 95%, but the product names differ." : "This brand and product name already exist, but the submitted formula differs."}</p><code>{initial.similarProduct.id}</code></section>
+      )}
+
+      {verdict === "untrusted_source" && sourceDomain && (
+        <section className="warning">
+          <p className="eyebrow">Untrusted product website</p>
+          <h2>{approvedSourceDomain || sourceDomain}</h2>
+          <p>Approve this website for {initial.submission.brand_name} and future product verification. This does not approve the current product.</p>
+          {approvedSourceDomain ? (
+            <span className="resolution resolution-matched">Website approved for this brand</span>
+          ) : (
+            <button className="primary small" disabled={saving === "domain"} onClick={approveSourceDomain}>
+              {saving === "domain" ? "Adding website…" : "Add website to approved list"}
+            </button>
+          )}
+        </section>
       )}
 
       {verdict === "name_resolved" && (

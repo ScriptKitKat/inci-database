@@ -1,6 +1,7 @@
 import "server-only";
 import { notFound } from "next/navigation";
 import { requireCuratorSession } from "@/lib/auth";
+import { domainMatches, sourceHostname } from "@/lib/domains";
 import { serviceClient } from "@/lib/supabase";
 import type { DetailData, SubmissionToken } from "@/lib/types";
 
@@ -63,6 +64,18 @@ export async function getSubmissionDetail(id: string): Promise<DetailData> {
       )?.payload?.trigger || null,
   }));
   const verification = submission.verification as Record<string, unknown>;
+  const sourceHost =
+    verification.verdict === "untrusted_source" ? sourceHostname(verification.source_url) : null;
+  let approvedSourceDomain = null;
+  if (sourceHost) {
+    const { data: domains, error } = await db
+      .from("brand_product_domains")
+      .select("domain")
+      .eq("normalized_brand_name", submission.brand_name.trim().toUpperCase());
+    if (error) throw error;
+    approvedSourceDomain =
+      (domains || []).find((row) => domainMatches(sourceHost, row.domain))?.domain || null;
+  }
   const similar = (verification.similar_product || verification.existing_product) as
     | { product_id?: string }
     | undefined;
@@ -82,5 +95,5 @@ export async function getSubmissionDetail(id: string): Promise<DetailData> {
     (audits || []).find((audit) => audit.payload?.trigger)?.payload?.trigger ||
     (verification.verdict as string | undefined) ||
     null;
-  return { submission, tokens, trigger, similarProduct } as DetailData;
+  return { submission, tokens, trigger, approvedSourceDomain, similarProduct } as DetailData;
 }

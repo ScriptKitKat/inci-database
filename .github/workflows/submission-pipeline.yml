@@ -1,0 +1,49 @@
+name: Submission pipeline
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Offset from the start of the hour, when scheduled Actions are busiest.
+    - cron: "7-57/10 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: submission-product-worker
+  cancel-in-progress: false
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      REMOTE_SUPABASE_URL: ${{ secrets.REMOTE_SUPABASE_URL }}
+      REMOTE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.REMOTE_SUPABASE_PUBLISHABLE_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check worker configuration
+        run: |
+          missing=0
+          for name in ANTHROPIC_API_KEY SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY REMOTE_SUPABASE_URL REMOTE_SUPABASE_PUBLISHABLE_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not configured as a GitHub Actions secret"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Install submission pipeline
+        run: python -m pip install -e submission-pipeline
+
+      - name: Process submissions
+        run: submission-pipeline run
