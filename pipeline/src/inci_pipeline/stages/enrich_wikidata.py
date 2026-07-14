@@ -14,7 +14,13 @@ from __future__ import annotations
 import logging
 from uuid import UUID
 
-from ..db import SourceRow, client, ingestion_run, stream_ingredients_with_cas, upsert_sources
+from ..db import (
+    SourceRow,
+    ingestion_run,
+    patch_ingredient_information,
+    stream_ingredients_with_cas,
+    upsert_sources,
+)
 from ..sources.wikidata import WikidataClient, chunked
 
 log = logging.getLogger(__name__)
@@ -55,9 +61,7 @@ def run(force: bool = False) -> None:
                 if record.ec and not existing_ec:
                     update["ec_number"] = record.ec
                 if update:
-                    client().table("ingredients").update(update).eq(
-                        "id", str(ing_id)
-                    ).execute()
+                    patch_ingredient_information(ing_id, cosing=update)
                     counters["rows_upserted"] += 1
 
                 source_batch.append(

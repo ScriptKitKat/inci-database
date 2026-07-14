@@ -11,7 +11,13 @@ import logging
 import time
 from uuid import UUID
 
-from ..db import AliasRow, client, ingestion_run, stream_ingredients_with_cas, upsert_aliases
+from ..db import (
+    AliasRow,
+    ingestion_run,
+    patch_ingredient_information,
+    stream_ingredients_with_cas,
+    upsert_aliases,
+)
 from ..sources.pubchem import PubChemClient
 
 log = logging.getLogger(__name__)
@@ -36,9 +42,9 @@ def run(force: bool = False) -> None:
                 continue
 
             if record.iupac_name:
-                client().table("ingredients").update({"iupac_name": record.iupac_name}).eq(
-                    "id", str(ing_id)
-                ).execute()
+                patch_ingredient_information(
+                    ing_id, cosing={"iupac_name": record.iupac_name}
+                )
 
             for syn in record.synonyms:
                 alias_batch.append(

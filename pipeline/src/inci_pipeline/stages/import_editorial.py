@@ -1,5 +1,5 @@
 """Read JSON files produced by the manual paste workflow and upsert
-them into ingredient_content. Companion to `export_editorial`.
+them into ingredient_writeups. Companion to `export_editorial`.
 
 Expected layout in the inbox dir:
     salicylic-acid.prompt.md   (original prompt)
@@ -18,7 +18,6 @@ import orjson
 
 from ..db import client, ingestion_run
 from ..llm.claude import parse_editorial_response
-from ..normalize import slug as slugify
 
 log = logging.getLogger(__name__)
 
@@ -68,18 +67,20 @@ def run(in_dir: Path, reviewer: str = "manual") -> None:
                 failures.append((path.name, f"parse error: {exc}"))
                 continue
 
-            client().table("ingredient_content").upsert(
+            client().table("ingredient_writeups").upsert(
                 {
                     "ingredient_id": str(ing_id),
-                    "language": "en",
-                    "status": "draft",
-                    "model_version": f"manual:{reviewer}",
-                    "summary_short": editorial.summary_short,
-                    "summary_long": editorial.summary_long,
+                    "editorial_metadata": {
+                        "language": "en",
+                        "status": "draft",
+                        "model_version": f"manual:{reviewer}",
+                        "what_it_does": editorial.what_it_does,
+                    },
+                    "summary": editorial.summary_short,
+                    "details": editorial.summary_long,
                     "quick_facts": editorial.quick_facts,
-                    "what_it_does": editorial.what_it_does,
                 },
-                on_conflict="ingredient_id,language",
+                on_conflict="ingredient_id",
             ).execute()
             counters["rows_upserted"] += 1
             succeeded.append(inci_name)

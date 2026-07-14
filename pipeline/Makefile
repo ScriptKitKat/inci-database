@@ -51,6 +51,7 @@ seed: install
 	$(PYTHON) -m inci_pipeline.cli run pubmed
 	$(PYTHON) -m inci_pipeline.cli run editorial
 	$(PYTHON) -m inci_pipeline.cli run classify
+	$(PYTHON) -m inci_pipeline.cli run products
 
 taxonomy:  install ; $(PYTHON) -m inci_pipeline.cli run obf-taxonomy
 wikidata:  install ; $(PYTHON) -m inci_pipeline.cli run wikidata

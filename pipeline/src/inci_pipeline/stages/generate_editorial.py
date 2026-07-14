@@ -2,8 +2,8 @@
 
 For each ingredient with PubMed sources, assemble {inci_name, function
 tags, restrictions, abstracts} and prompt Claude for structured JSON.
-Upserts `ingredient_content` with status='draft' and a versioned
-model_version. Human curators flip status to 'published' separately.
+Upserts `ingredient_writeups` with draft editorial metadata and a versioned
+model identifier. Human curators flip its metadata status to published.
 
 Rating is intentionally never written by this stage.
 """
@@ -54,18 +54,20 @@ def run(force: bool = False, process_all: bool = False) -> None:
                 log.warning("editorial failed for %s: %s", row["inci_name"], exc)
                 continue
 
-            client().table("ingredient_content").upsert(
+            client().table("ingredient_writeups").upsert(
                 {
                     "ingredient_id": str(ing_id),
-                    "language": "en",
-                    "status": "draft",
-                    "model_version": model_version,
-                    "summary_short": editorial.summary_short,
-                    "summary_long": editorial.summary_long,
+                    "editorial_metadata": {
+                        "language": "en",
+                        "status": "draft",
+                        "model_version": model_version,
+                        "what_it_does": editorial.what_it_does,
+                    },
+                    "summary": editorial.summary_short,
+                    "details": editorial.summary_long,
                     "quick_facts": editorial.quick_facts,
-                    "what_it_does": editorial.what_it_does,
                 },
-                on_conflict="ingredient_id,language",
+                on_conflict="ingredient_id",
             ).execute()
             counters["rows_upserted"] += 1
 
@@ -84,14 +86,23 @@ def _all_ingredients():
         res = (
             client()
             .table("ingredients")
-            .select("id, inci_name, function_tags, is_restricted_eu, is_restricted_us")
+            .select(
+                "id, inci_name, "
+                "ingredient_information(functions,additional_information)"
+            )
             .range(offset, offset + BATCH - 1)
             .execute()
         )
         rows = res.data or []
         if not rows:
             return
-        yield from rows
+        for row in rows:
+            info = row.pop("ingredient_information", None) or {}
+            additional = info.get("additional_information") or {}
+            row["function_tags"] = info.get("functions") or []
+            row["is_restricted_eu"] = additional.get("is_restricted_eu", False)
+            row["is_restricted_us"] = additional.get("is_restricted_us", False)
+            yield row
         if len(rows) < BATCH:
             return
         offset += BATCH

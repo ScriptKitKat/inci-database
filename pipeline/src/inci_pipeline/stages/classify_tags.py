@@ -8,7 +8,6 @@ Rating remains NULL — that field is reserved for human curators.
 from __future__ import annotations
 
 import logging
-from uuid import UUID
 
 from ..db import client, ingestion_run
 
@@ -42,8 +41,8 @@ def run(force: bool = False) -> None:
         while True:
             res = (
                 client()
-                .table("ingredients")
-                .select("id, function_tags, skin_type_tag, concern_tag")
+                .table("ingredient_information")
+                .select("ingredient_id, functions, additional_information")
                 .range(offset, offset + page - 1)
                 .execute()
             )
@@ -52,16 +51,19 @@ def run(force: bool = False) -> None:
                 return
             for row in rows:
                 counters["rows_in"] += 1
-                skin_types, concerns = _classify(row.get("function_tags") or [])
+                skin_types, concerns = _classify(row.get("functions") or [])
+                additional = row.get("additional_information") or {}
                 # Only write if we have something the row doesn't already.
                 update = {}
-                if skin_types and not row.get("skin_type_tag"):
-                    update["skin_type_tag"] = skin_types
-                if concerns and not row.get("concern_tag"):
-                    update["concern_tag"] = concerns
+                if skin_types and not additional.get("skin_type_tags"):
+                    update["skin_type_tags"] = skin_types
+                if concerns and not additional.get("concern_tags"):
+                    update["concern_tags"] = concerns
                 if update:
-                    client().table("ingredients").update(update).eq(
-                        "id", row["id"]
+                    client().table("ingredient_information").update(
+                        {"additional_information": {**additional, **update}}
+                    ).eq(
+                        "ingredient_id", row["ingredient_id"]
                     ).execute()
                     counters["rows_upserted"] += 1
             if len(rows) < page:

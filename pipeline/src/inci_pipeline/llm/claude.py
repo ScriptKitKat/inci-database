@@ -72,7 +72,7 @@ def generate_editorial(
     abstracts: list[dict],
 ) -> Editorial:
     """Single Claude call. Returns structured fields ready for
-    ingredient_content insert."""
+    ingredient_writeups insert."""
     user_msg = build_editorial_prompt(
         inci_name=inci_name,
         function_tags=function_tags,
