@@ -80,7 +80,10 @@ def upsert_ingredients(
     if not rows:
         return out
     for batch in _chunked(rows, chunk):
-        payload = [r.model_dump(mode="json") for r in batch]
+        payload = [
+            {"inci_name": r.inci_name, "slug": r.slug}
+            for r in batch
+        ]
         res = (
             client()
             .table("ingredients")
@@ -89,6 +92,63 @@ def upsert_ingredients(
         )
         for row in res.data or []:
             out[row["inci_name"]] = UUID(row["id"])
+        ingredient_ids = [row["id"] for row in res.data or []]
+        existing_information = {}
+        if ingredient_ids:
+            existing = (
+                client()
+                .table("ingredient_information")
+                .select(
+                    "ingredient_id,functions,cosing_information,additional_information"
+                )
+                .in_("ingredient_id", ingredient_ids)
+                .execute()
+            )
+            existing_information = {
+                row["ingredient_id"]: row for row in existing.data or []
+            }
+        information_payload = []
+        by_name = {r.inci_name: r for r in batch}
+        for row in res.data or []:
+            source = by_name[row["inci_name"]]
+            current = existing_information.get(row["id"], {})
+            cosing_update = {
+                key: value
+                for key, value in {
+                    "cas_number": source.cas_number,
+                    "ec_number": source.ec_number,
+                    "iupac_name": source.iupac_name,
+                    "ph_eur_name": source.ph_eur_name,
+                }.items()
+                if value is not None
+            }
+            additional_update: dict[str, Any] = {}
+            if source.skin_type_tag:
+                additional_update["skin_type_tags"] = source.skin_type_tag
+            if source.concern_tag:
+                additional_update["concern_tags"] = source.concern_tag
+            if source.is_restricted_eu:
+                additional_update["is_restricted_eu"] = True
+            if source.is_restricted_us:
+                additional_update["is_restricted_us"] = True
+            information_payload.append(
+                {
+                    "ingredient_id": row["id"],
+                    "functions": source.function_tags or current.get("functions") or [],
+                    "cosing_information": {
+                        **(current.get("cosing_information") or {}),
+                        **cosing_update,
+                    },
+                    "additional_information": {
+                        **(current.get("additional_information") or {}),
+                        **additional_update,
+                    },
+                }
+            )
+        if information_payload:
+            client().table("ingredient_information").upsert(
+                information_payload, on_conflict="ingredient_id"
+            ).execute()
     return out
 
 
@@ -137,16 +197,24 @@ def stream_ingredients_with_cas(page_size: int = 1000) -> Iterable[dict[str, Any
     while True:
         res = (
             client()
-            .table("ingredients")
-            .select("id, inci_name, cas_number")
-            .not_.is_("cas_number", "null")
+            .table("ingredient_information")
+            .select("ingredient_id, cosing_information, ingredients(inci_name)")
+            .not_.is_("cosing_information->>cas_number", "null")
             .range(offset, offset + page_size - 1)
             .execute()
         )
         rows = res.data or []
         if not rows:
             return
-        yield from rows
+        for row in rows:
+            cosing = row.get("cosing_information") or {}
+            ingredient = row.get("ingredients") or {}
+            yield {
+                "id": row["ingredient_id"],
+                "inci_name": ingredient.get("inci_name"),
+                "cas_number": cosing.get("cas_number"),
+                "ec_number": cosing.get("ec_number"),
+            }
         if len(rows) < page_size:
             return
         offset += page_size
@@ -317,12 +385,18 @@ def stream_curated_ingredients(
         return
     for i in range(0, len(ids), page_size):
         batch = ids[i : i + page_size]
-        q = client().table("ingredients").select("id, inci_name, cas_number")
+        q = client().table("ingredients").select(
+            "id, inci_name, ingredient_information(cosing_information)"
+        )
         q = q.in_("id", [str(uid) for uid in batch])
         if require_cas:
-            q = q.not_.is_("cas_number", "null")
+            q = q.not_.is_("ingredient_information.cosing_information->>cas_number", "null")
         res = q.execute()
-        yield from (res.data or [])
+        for row in res.data or []:
+            info = row.pop("ingredient_information", None) or {}
+            cosing = info.get("cosing_information") or {}
+            row["cas_number"] = cosing.get("cas_number")
+            yield row
 
 
 def fetch_ingredients_for_editorial(
@@ -335,11 +409,51 @@ def fetch_ingredients_for_editorial(
         res = (
             client()
             .table("ingredients")
-            .select("id, inci_name, function_tags, is_restricted_eu, is_restricted_us")
+            .select(
+                "id, inci_name, "
+                "ingredient_information(functions,additional_information)"
+            )
             .in_("id", [str(uid) for uid in batch])
             .execute()
         )
-        yield from (res.data or [])
+        for row in res.data or []:
+            info = row.pop("ingredient_information", None) or {}
+            additional = info.get("additional_information") or {}
+            row["function_tags"] = info.get("functions") or []
+            row["is_restricted_eu"] = additional.get("is_restricted_eu", False)
+            row["is_restricted_us"] = additional.get("is_restricted_us", False)
+            yield row
+
+
+def patch_ingredient_information(
+    ingredient_id: UUID, *, cosing: dict[str, Any] | None = None,
+    additional: dict[str, Any] | None = None
+) -> None:
+    """Merge selected JSON fields without erasing information from other stages."""
+    current = (
+        client()
+        .table("ingredient_information")
+        .select("cosing_information,additional_information")
+        .eq("ingredient_id", str(ingredient_id))
+        .single()
+        .execute()
+        .data
+    )
+    update: dict[str, Any] = {}
+    if cosing:
+        update["cosing_information"] = {
+            **(current.get("cosing_information") or {}),
+            **cosing,
+        }
+    if additional:
+        update["additional_information"] = {
+            **(current.get("additional_information") or {}),
+            **additional,
+        }
+    if update:
+        client().table("ingredient_information").update(update).eq(
+            "ingredient_id", str(ingredient_id)
+        ).execute()
 
 
 @contextmanager

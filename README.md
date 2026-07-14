@@ -78,13 +78,13 @@ inci-pipeline match "salycilic acid"   # typo, should still hit Salicylic Acid
 
 | #   | Stage | Reads | Writes |
 |-----|-------|-------|--------|
-| 1   | obf-taxonomy | OBF `ingredients.txt` | `ingredients`, `ingredient_aliases` (synonyms + translations), `ingredient_sources` (wikidata id) |
-| 1b  | wikidata | `ingredients` with CAS | `ingredients.ec_number` (when missing), `ingredient_sources` (EC/InChI/formula) |
-| 2   | pubchem | `ingredients` with CAS | `ingredients.iupac_name`, `ingredient_aliases` (synonyms) |
+| 1   | obf-taxonomy | OBF `ingredients.txt` | `ingredients`, `ingredient_information`, `ingredient_aliases` (synonyms + translations), `ingredient_sources` (wikidata id) |
+| 1b  | wikidata | `ingredient_information` with CAS | `ingredient_information.cosing_information` (EC when missing), `ingredient_sources` (EC/InChI/formula) |
+| 2   | pubchem | `ingredient_information` with CAS | `ingredient_information.cosing_information` (IUPAC name), `ingredient_aliases` (synonyms) |
 | 3   | obf-aliases | OBF dump | `ingredient_aliases` (label variants); `data/unmatched_tokens.csv` |
 | 4   | pubmed | `ingredients` | `ingredient_sources` (abstracts) |
-| 5   | editorial | `ingredient_sources` | `ingredient_content` (draft) |
-| 6   | classify | `ingredients.function_tags` | `ingredients.skin_type_tag`, `ingredients.concern_tag` |
+| 5   | editorial | `ingredient_sources` | `ingredient_writeups` (draft) |
+| 6   | classify | `ingredient_information.functions` | `ingredient_information.additional_information` |
 | 7   | products | OBF dump | `brands`, `products`, `product_ingredients` |
 
 All stages are idempotent — re-run with `--force` to bypass the last-success guard.
@@ -103,8 +103,8 @@ select * from match_ingredient('salycilic acid');     -- typo
 select * from match_ingredient('Sodium Hyaluronate');
 ```
 
-When an API lands, the decode endpoint will tokenize the input, call `match_ingredient` per token, and join `ingredient_content` where `status = 'published'`. Cache key: SHA256 of the normalized token list. TTL 24h.
+When an API lands, the decode endpoint will tokenize the input, call `match_ingredient` per token, and join `ingredient_writeups` where `editorial_metadata->>'status' = 'published'`. Cache key: SHA256 of the normalized token list. TTL 24h.
 
 ## Notes on rating
 
-`ingredients.rating` (`superhero`, `great`, `average`, `not_good`, `bad`) is never assigned by the pipeline. It's a human editorial judgment. Set it via the Supabase dashboard or a future curator UI.
+`ingredient_information.rating` (`superhero`, `great`, `average`, `not_good`, `bad`) is never assigned by the pipeline. It's a human editorial judgment. Set it via the Supabase dashboard or a future curator UI.

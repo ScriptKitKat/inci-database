@@ -47,7 +47,7 @@ User (app / review-UI form / CLI)
 
 GitHub Actions cron (*/30) -> `submission-pipeline run`:
   1. poll_batches   — retrieve finished Anthropic batches, write verdicts/resolutions
-  2. intake         — claim received rows: tokenize_label -> fingerprint dupe-check
+  2. intake         — claim received rows: tokenize_label -> direct formula comparison
                       -> match_ingredient per token -> deterministic evidence lookups
   3. submit_batch   — one Anthropic Batch: product web-search verification
                       + per-unresolved-token judgment
@@ -62,19 +62,21 @@ All state lives in Postgres. Claiming uses `FOR UPDATE SKIP LOCKED` + `locked_at
 `attempt_count` (same pattern as `claim_ingredient_name_curation_queue`). Every step is
 idempotent; the workflow has a `concurrency` group so runs never overlap.
 
-## Schema (migration `supabase/migrations/20260710000100_product_submissions.sql`)
+## Schema (migrations `20260710000100_product_submissions.sql` through
+`20260713000300_remove_product_ingredient_metadata.sql`)
 
 - `product_submissions` — one row per submitted product: submitter, brand/product names,
-  `raw_ingredient_text`, `ingredient_fingerprint`, status
+  `raw_ingredient_text`, status
   (`received | triaging | verifying | decision_ready | pending_human | approved | rejected | duplicate | failed`),
-  `verification` JSONB (`{found, source_name, source_url, overlap, verdict, online_tokens?}` —
-  `online_tokens` stored only when divergent), `anthropic_batch_id`, `product_id` (set on
+  `verification` JSONB (web-verification results, or
+  `{verdict: "similar_product", similar_product: {product_id, similarity}}`; online tokens
+  are stored only when divergent), `anthropic_batch_id`, `product_id` (set on
   approve; on duplicate points at the existing product), worker fields (`locked_at`,
   `attempt_count`, `last_error`), review fields, timestamps.
 - `submission_tokens` — one row per parsed ingredient token: position, raw/normalized
   token, match result (`matched_ingredient_id`, `match_type`, `match_confidence`),
-  `resolution` (`unresolved | matched | new_ingredient | junk | unmatched_keep | pending_human`;
-  `unmatched_keep` is human-only), `canonical_name` (exact string from an authoritative
+  `resolution` (`unresolved | matched | new_ingredient | junk | pending_human`),
+  `canonical_name` (exact string from an authoritative
   source), compact `evidence` JSONB array (no raw payloads), `resolution_source`
   (`exact_match | deterministic | llm | human`). UNIQUE (submission_id, position).
 - `curators` — user_id allowlist for review access.
@@ -87,13 +89,21 @@ RPCs (SECURITY DEFINER; mutations require service role or curators membership):
 - `fail_product_submission(p_id, p_error, p_max_attempts = 3)` — retry/fail.
 - `resolve_submission_token(p_token_id, p_resolution, p_ingredient_id, p_canonical_name)` —
   human token action; validates curator; writes audit.
+- `find_product_formula_match(p_tokens, p_brand_name, p_product_name,
+  p_similarity_threshold)` — resolves a queued ingredient sequence to canonical ingredient
+  IDs through exact names and validated aliases, then compares it with existing
+  `product_ingredients`. An exact formula is an automatic duplicate only when normalized
+  brand and product name also match. Formula overlap at or above 0.95 is sent to human
+  review only when the matched product name differs; lower overlap and same-name
+  reformulations continue normal verification. No label text or hash is stored on catalog
+  rows.
 - `apply_product_submission(p_id, p_actor)` — the ONLY writer to canonical tables. One
-  transaction: guard (all tokens resolved; fingerprint race re-check); upsert brand;
+  transaction: guard (all tokens resolved; direct formula race re-check); upsert brand;
   insert `new_ingredient` tokens as ingredients (inci_name = canonical_name, existing slug
   recipe, raw token as alias when different; no editorial enqueue); add typo/synonym
-  aliases for LLM/human-confirmed variants; insert product (slug recipe, fingerprint,
-  short_description NULL); insert product_ingredients (junk dropped, unmatched_keep kept
-  with NULL ingredient_id); mark approved; null heavy JSONB; audit.
+  aliases for LLM/human-confirmed variants; insert product (slug recipe,
+  short_description NULL); insert product_ingredients (junk dropped); mark approved;
+  null heavy JSONB; audit.
 - `reject_product_submission(p_id, p_reason, p_actor)`.
 - `purge_stale_submissions(p_days = 30)`.
 
@@ -181,7 +191,7 @@ curators only; mutations via RPCs only):
 2. pytest (mock Anthropic, local Supabase) — six scenarios: clean full match; typo token;
    real-but-new ingredient (mock CosIng exact hit -> auto-create with source spelling;
    a PubChem-only hit must NOT auto-create);
-   junk token; divergent product list -> pending_human; duplicate fingerprint.
+   junk token; divergent product list -> pending_human; exact and similar catalog formulas.
 3. CLI E2E: `submission-pipeline submit` with a real label -> `run --once` twice ->
    assert product/product_ingredients/aliases/audit rows.
 4. Review UI: log in as seeded curator, resolve a pending_human fixture, approve, confirm

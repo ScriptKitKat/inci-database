@@ -602,14 +602,4 @@ SET ingredient_fingerprint = CASE
 FROM unique_fingerprints u
 WHERE p.id = u.product_id;
 
-UPDATE products p
-SET status = 'rejected',
-    updated_at = now()
-WHERE status = 'approved'
-  AND NOT EXISTS (
-    SELECT 1
-    FROM product_ingredients pi
-    WHERE pi.product_id = p.id
-  );
-
 COMMIT;

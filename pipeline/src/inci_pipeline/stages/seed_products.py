@@ -9,10 +9,15 @@ from __future__ import annotations
 import logging
 import hashlib
 from datetime import datetime, timezone
-
 from ..config import settings
-from ..db import client, fetch_exact_match_index, fetch_existing_product_slugs, ingestion_run, reset_client
-from ..normalize import ingredient_fingerprint, normalize_brand_name, normalize_name, slug, tokenize_label
+from ..db import (
+    client,
+    fetch_exact_match_index,
+    fetch_existing_product_slugs,
+    ingestion_run,
+    reset_client,
+)
+from ..normalize import normalize_brand_name, normalize_name, slug, tokenize_label
 from ..sources.open_beauty_facts import stream
 
 log = logging.getLogger(__name__)
@@ -62,23 +67,6 @@ def _upsert_brand(name: str) -> str:
     return brand_id
 
 
-def _fingerprint_collision_id(fingerprint: str, product_slug: str) -> str | None:
-    existing = (
-        client()
-        .table("products")
-        .select("id, slug")
-        .eq("ingredient_fingerprint", fingerprint)
-        .limit(1)
-        .execute()
-    )
-    if not existing.data:
-        return None
-    row = existing.data[0]
-    if row["slug"] == product_slug:
-        return None
-    return row["id"]
-
-
 def run(force: bool = False) -> None:
     s = settings()
     path = s.obf_dump_path
@@ -87,7 +75,9 @@ def run(force: bool = False) -> None:
 
     match_index = fetch_exact_match_index()
     known_terms = set(match_index)
-    log.info("loaded %s normalized ingredient/alias terms for product tokenization", len(known_terms))
+    log.info(
+        "loaded %s normalized ingredient/alias terms for product tokenization", len(known_terms)
+    )
     existing_product_slugs = fetch_existing_product_slugs()
     log.info("loaded %s existing product slugs for resume", len(existing_product_slugs))
 
@@ -104,10 +94,14 @@ def run(force: bool = False) -> None:
             product_slug = _product_slug(brand, product.name)
             if product_slug in existing_product_slugs:
                 continue
-            fingerprint = ingredient_fingerprint(tokens)
-            if _fingerprint_collision_id(fingerprint, product_slug):
+
+            resolved_ingredients = [
+                (position, match_index.get(normalize_name(token)))
+                for position, token in enumerate(tokens, start=1)
+            ]
+            if any(ingredient_id is None for _, ingredient_id in resolved_ingredients):
                 log.info(
-                    "skipping probable duplicate product with fingerprint collision: %s / %s",
+                    "skipping product with ingredients that require review: %s / %s",
                     brand,
                     product.name,
                 )
@@ -122,8 +116,6 @@ def run(force: bool = False) -> None:
                         "name": product.name,
                         "slug": product_slug,
                         "brand_id": brand_id,
-                        "ingredient_fingerprint": fingerprint,
-                        "status": "approved",
                         "updated_at": datetime.now(timezone.utc).isoformat(),
                     },
                     on_conflict="slug",
@@ -132,21 +124,19 @@ def run(force: bool = False) -> None:
             )
             product_id = inserted.data[0]["id"]
 
-            rows = []
-            for position, token in enumerate(tokens, start=1):
-                ingredient_id = match_index.get(normalize_name(token))
-                rows.append(
-                    {
-                        "product_id": product_id,
-                        "position": position,
-                        "raw_inci_token": token,
-                        "ingredient_id": str(ingredient_id) if ingredient_id else None,
-                        "is_matched": ingredient_id is not None,
-                    }
-                )
+            rows = [
+                {
+                    "product_id": product_id,
+                    "position": position,
+                    "ingredient_id": str(ingredient_id),
+                }
+                for position, ingredient_id in resolved_ingredients
+            ]
             if rows:
-                client().table("product_ingredients").delete().eq("product_id", product_id).execute()
-                client().table("product_ingredients").upsert(rows).execute()
+                client().table("product_ingredients").delete().eq(
+                    "product_id", product_id
+                ).execute()
+                client().table("product_ingredients").insert(rows).execute()
                 counters["rows_upserted"] += len(rows)
                 existing_product_slugs.add(product_slug)
                 if len(existing_product_slugs) % 500 == 0:

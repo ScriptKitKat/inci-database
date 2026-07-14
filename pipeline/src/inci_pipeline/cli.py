@@ -109,11 +109,11 @@ def import_editorial(
     reviewer: str = typer.Option(
         "manual",
         "--reviewer",
-        help="Stored in ingredient_content.model_version as `manual:<reviewer>`.",
+        help="Stored in ingredient_writeups.editorial_metadata as `manual:<reviewer>`.",
     ),
 ) -> None:
     """Import JSON responses written by the manual paste workflow into
-    ingredient_content. Processed files move to <in>/processed/."""
+    ingredient_writeups. Processed files move to <in>/processed/."""
     from .stages.import_editorial import run as import_run
 
     _configure_logging()

@@ -305,15 +305,6 @@ UPDATE product_ingredients
 SET position = -position
 WHERE position < 0;
 
-UPDATE products p
-SET status = 'rejected',
-    updated_at = now()
-WHERE status = 'approved'
-  AND NOT EXISTS (
-    SELECT 1
-    FROM product_ingredients pi
-    WHERE pi.product_id = p.id
-  );
 
 UPDATE products
 SET ingredient_fingerprint = NULL;
