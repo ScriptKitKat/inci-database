@@ -10,6 +10,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     supabase_url: str
     supabase_service_role_key: str
+    remote_supabase_url: str | None = None
+    remote_supabase_publishable_key: str | None = None
     anthropic_api_key: str | None = None
 
     judge_model: str = "claude-sonnet-4-6"
@@ -28,6 +30,9 @@ class Settings(BaseSettings):
     junk_confidence_threshold: float = 0.90
 
     product_overlap_threshold: float = 0.90
+    trusted_product_domains: str = (
+        "incidecoder.com,sephora.com,ulta.com,boots.com,lookfantastic.com,oliveyoung.com"
+    )
     # Formula overlap that requires curator review when the product name differs.
     product_formula_similarity_threshold: float = 0.95
     claim_limit: int = 25
@@ -35,6 +40,8 @@ class Settings(BaseSettings):
     purge_days: int = 30
     # A `triaging` claim older than this is a crashed worker; release it.
     stale_claim_minutes: int = 30
+    verification_batch_max_requests: int = 10_000
+    verification_batch_max_bytes: int = 20_000_000
 
     # Fall back to synchronous Messages calls for product verification if
     # web_search inside the Batch API misbehaves.

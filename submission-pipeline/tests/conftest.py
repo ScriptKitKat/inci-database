@@ -40,6 +40,8 @@ class FakeDB:
         self.needing_description: list[dict[str, Any]] = []
         self.description_context: dict[str, dict[str, Any]] = {}
         self.descriptions: dict[str, str] = {}
+        self.verification_batches: dict[str, dict[str, Any]] = {}
+        self.brand_domains: dict[str, list[str]] = {}
 
     # -- seeding helpers ----------------------------------------------------
 
@@ -135,12 +137,95 @@ class FakeDB:
     def update_submission(self, submission_id, fields):
         self.submissions[submission_id].update(fields)
 
-    def assign_batch_id(self, submission_id, batch_id):
-        row = self.submissions[submission_id]
-        if row["anthropic_batch_id"] is not None:
+    def claim_verification_submissions(self, limit):
+        claimed = []
+        for row in self.submissions.values():
+            if row["status"] == "verifying" and row["anthropic_batch_id"] is None:
+                row["status"] = "batch_preparing"
+                row["verification_group_id"] = "claim-group"
+                claimed.append(dict(row))
+                if len(claimed) == limit:
+                    break
+        return claimed
+
+    def create_verification_batch(
+        self, batch_id, submission_ids, request_count, payload_bytes
+    ):
+        self.verification_batches[batch_id] = {
+            "id": batch_id,
+            "anthropic_batch_id": None,
+            "submission_ids": list(submission_ids),
+            "request_count": request_count,
+            "payload_bytes": payload_bytes,
+            "status": "preparing",
+        }
+        for submission_id in submission_ids:
+            self.submissions[submission_id]["verification_group_id"] = batch_id
+
+    def attach_verification_batch(self, batch_id, anthropic_batch_id):
+        batch = self.verification_batches[batch_id]
+        batch.update(status="submitted", anthropic_batch_id=anthropic_batch_id)
+        for submission_id in batch["submission_ids"]:
+            self.submissions[submission_id].update(
+                status="verifying",
+                anthropic_batch_id=anthropic_batch_id,
+                verification_group_id=batch_id,
+            )
+
+    def release_verification_batch(self, batch_id, error, orphaned=False):
+        batch = self.verification_batches[batch_id]
+        batch.update(status="orphaned" if orphaned else "failed", last_error=error)
+        for submission_id in batch["submission_ids"]:
+            self.submissions[submission_id].update(
+                status="received",
+                anthropic_batch_id=None,
+                verification_group_id=None,
+            )
+
+    def fetch_verification_batches(self, status):
+        return [dict(row) for row in self.verification_batches.values() if row["status"] == status]
+
+    def close_verification_batch(self, batch_id, status, error=None):
+        self.verification_batches[batch_id].update(status=status, last_error=error)
+
+    def finalize_submission_verification(
+        self, submission_id, expected_batch_id, token_updates, verification, status, trigger
+    ):
+        submission = self.submissions[submission_id]
+        if expected_batch_id is not None and submission.get("anthropic_batch_id") != expected_batch_id:
             return False
-        row["anthropic_batch_id"] = batch_id
+        for update in token_updates:
+            self.tokens[update["token_id"]].update(update["fields"])
+            if update.get("trigger"):
+                self.audit(
+                    submission_id,
+                    "token_escalated",
+                    {"token_id": update["token_id"], "trigger": update["trigger"]},
+                )
+        submission.update(
+            status=status,
+            verification=verification,
+            anthropic_batch_id=None,
+            verification_group_id=None,
+            locked_at=None,
+        )
+        if verification.get("verdict") == "name_resolved":
+            submission["product_name"] = verification["resolved_product_name"]
+        self.audit(
+            submission_id,
+            "verified",
+            {
+                "verdict": verification["verdict"],
+                "status": status,
+                "submitted_coverage": verification["submitted_coverage"],
+                "online_coverage": verification["online_coverage"],
+                **({"trigger": trigger} if trigger else {}),
+            },
+        )
         return True
+
+    def recover_stale_verification_batches(self, older_than_minutes):
+        return 0
 
     def release_stale_claims(self, status, older_than_minutes):
         from datetime import datetime, timedelta, timezone
@@ -229,6 +314,10 @@ class FakeDB:
         row = self.ingredients.get(ingredient_id)
         return dict(row) if row else None
 
+    def fetch_brand_product_domains(self, submission_id):
+        brand = self.submissions[submission_id]["brand_name"].strip().upper()
+        return list(self.brand_domains.get(brand, []))
+
     def fetch_approved_needing_description(self, limit=50):
         return list(self.needing_description)[:limit]
 
@@ -256,9 +345,17 @@ def fake_db(monkeypatch: pytest.MonkeyPatch) -> FakeDB:
         "update_token",
         "find_product_formula_match",
         "find_product_by_identity",
-        "assign_batch_id",
+        "claim_verification_submissions",
+        "create_verification_batch",
+        "attach_verification_batch",
+        "release_verification_batch",
+        "fetch_verification_batches",
+        "close_verification_batch",
+        "finalize_submission_verification",
+        "recover_stale_verification_batches",
         "release_stale_claims",
         "fetch_ingredient",
+        "fetch_brand_product_domains",
         "fetch_approved_needing_description",
         "fetch_product_description_context",
         "set_product_description_if_missing",

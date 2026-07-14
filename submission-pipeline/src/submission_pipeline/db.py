@@ -1,8 +1,8 @@
 """Supabase access layer for the submission pipeline.
 
-All writes flow through the service role client. Canonical-table writes
-happen exclusively inside the `apply_product_submission` RPC; this module
-only touches submission staging tables and worker RPCs.
+All writes flow through the service role client. Product approval writes
+happen inside `apply_product_submission`; remote canonical ingredient IDs are
+mirrored through a restricted RPC before staging tokens reference them.
 """
 
 from __future__ import annotations
@@ -82,16 +82,96 @@ def update_submission(submission_id: str, fields: dict[str, Any]) -> None:
     client().table("product_submissions").update(fields).eq("id", submission_id).execute()
 
 
-def assign_batch_id(submission_id: str, batch_id: str) -> bool:
-    """Attach a batch id only if none is set; False means another worker won."""
-    res = (
+def claim_verification_submissions(limit: int) -> list[dict[str, Any]]:
+    res = client().rpc("claim_submission_verification", {"p_limit": limit}).execute()
+    return res.data or []
+
+
+def create_verification_batch(
+    batch_id: str,
+    submission_ids: list[str],
+    request_count: int,
+    payload_bytes: int,
+) -> None:
+    client().rpc(
+        "create_submission_verification_batch",
+        {
+            "p_group_id": batch_id,
+            "p_submission_ids": submission_ids,
+            "p_request_count": request_count,
+            "p_payload_bytes": payload_bytes,
+        },
+    ).execute()
+
+
+def attach_verification_batch(batch_id: str, anthropic_batch_id: str) -> None:
+    client().rpc(
+        "attach_submission_verification_batch",
+        {"p_group_id": batch_id, "p_anthropic_batch_id": anthropic_batch_id},
+    ).execute()
+
+
+def release_verification_batch(batch_id: str, error: str, *, orphaned: bool = False) -> None:
+    client().rpc(
+        "release_submission_verification_batch",
+        {
+            "p_group_id": batch_id,
+            "p_error": error,
+            "p_max_attempts": settings().max_attempts,
+            "p_orphaned": orphaned,
+        },
+    ).execute()
+
+
+def fetch_verification_batches(status: str) -> list[dict[str, Any]]:
+    return (
         client()
-        .table("product_submissions")
-        .update({"anthropic_batch_id": batch_id})
-        .eq("id", submission_id)
-        .is_("anthropic_batch_id", "null")
+        .table("submission_verification_batches")
+        .select("*")
+        .eq("status", status)
+        .order("created_at")
         .execute()
+        .data
+        or []
     )
+
+
+def recover_stale_verification_batches(older_than_minutes: int) -> int:
+    res = client().rpc(
+        "recover_stale_submission_verification",
+        {
+            "p_older_than_minutes": older_than_minutes,
+            "p_max_attempts": settings().max_attempts,
+        },
+    ).execute()
+    return int(res.data or 0)
+
+
+def close_verification_batch(batch_id: str, status: str, error: str | None = None) -> None:
+    client().table("submission_verification_batches").update(
+        {"status": status, "last_error": error}
+    ).eq("id", batch_id).execute()
+
+
+def finalize_submission_verification(
+    submission_id: str,
+    expected_batch_id: str | None,
+    token_updates: list[dict[str, Any]],
+    verification: dict[str, Any],
+    status: str,
+    trigger: str | None,
+) -> bool:
+    res = client().rpc(
+        "finalize_submission_verification",
+        {
+            "p_id": submission_id,
+            "p_expected_batch_id": expected_batch_id,
+            "p_token_updates": token_updates,
+            "p_verification": verification,
+            "p_status": status,
+            "p_trigger": trigger,
+        },
+    ).execute()
     return bool(res.data)
 
 
@@ -236,6 +316,46 @@ def fetch_ingredient(ingredient_id: str) -> dict[str, Any] | None:
         .execute()
     )
     return res.data[0] if res.data else None
+
+
+def sync_remote_catalog_ingredient(ingredient: dict[str, Any]) -> str:
+    res = (
+        client()
+        .rpc(
+            "sync_remote_catalog_ingredient",
+            {
+                "p_id": ingredient["id"],
+                "p_inci_name": ingredient["inci_name"],
+                "p_slug": ingredient["slug"],
+            },
+        )
+        .execute()
+    )
+    return str(res.data)
+
+
+def fetch_brand_product_domains(submission_id: str) -> list[str]:
+    submission = (
+        client()
+        .table("product_submissions")
+        .select("brand_name")
+        .eq("id", submission_id)
+        .single()
+        .execute()
+        .data
+    )
+    if not submission:
+        return []
+    rows = (
+        client()
+        .table("brand_product_domains")
+        .select("domain")
+        .eq("normalized_brand_name", str(submission["brand_name"]).strip().upper())
+        .execute()
+        .data
+        or []
+    )
+    return [str(row["domain"]) for row in rows]
 
 
 def fetch_approved_needing_description(limit: int = 50) -> list[dict[str, Any]]:

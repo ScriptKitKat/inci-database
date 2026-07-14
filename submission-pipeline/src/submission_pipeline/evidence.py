@@ -202,6 +202,18 @@ def default_lookups() -> list[Lookup]:
     ]
 
 
+def has_spelling_disagreement(evidence_rows: list[dict[str, Any]]) -> bool:
+    """Two INCI-native sources proposing materially different spellings is a
+    disagreement for a human to settle, not a vote for the higher-confidence
+    source. Operates on the serialized evidence shape stored on tokens."""
+    spellings = {
+        normalize_name(str(row.get("canonical") or ""))
+        for row in evidence_rows
+        if row.get("found") and row.get("source") in SPELLING_SOURCES and row.get("canonical")
+    }
+    return len(spellings) > 1
+
+
 def gather_evidence(normalized: str, lookups: list[Lookup]) -> list[Evidence]:
     """Run independent lookups concurrently; one failure never hides the rest."""
     out: list[Evidence | None] = [None] * len(lookups)

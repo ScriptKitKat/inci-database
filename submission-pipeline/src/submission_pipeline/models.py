@@ -83,3 +83,5 @@ class ProductFinding:
     source_name: str | None = None
     source_url: str | None = None
     online_ingredients: list[str] = field(default_factory=list)
+    reason: str = ""
+    matched_product_name: str | None = None

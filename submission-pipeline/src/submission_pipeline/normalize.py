@@ -21,6 +21,12 @@ _INGREDIENT_MARKER = re.compile(
     r"\b(?:ingredients?|ngredients?|ingrediants?|inci)\b\s*[:\-]?\s*",
     re.IGNORECASE,
 )
+_SECTION_HEADER = re.compile(
+    r"\*{0,2}\s*(?:active|inactive)\s+ingredients?"
+    r"(?:\s*\([^)]*\))?\s*\*{0,2}\s*[-:–—]*\s*",
+    re.IGNORECASE,
+)
+_TRAILING_CONCENTRATION = re.compile(r"\s+\d+(?:\.\d+)?\s*%+\s*$")
 _NON_INGREDIENT_PREFIX = re.compile(
     r"^\s*(?:directions?|instructions?|how\s+to\s+use|usage|uso|modo\s+de\s+empleo|mode\s+d'emploi|"
     r"warnings?|cautions?|precautions?|lot|batch|mfg|manufacturing|exp|expiry)\b",
@@ -145,8 +151,14 @@ _COMMON_SPACE_DELIMITED_INGREDIENTS = {
 
 
 def normalize_name(text: str) -> str:
-    """Lowercase, strip accents, drop punctuation. Mirrors the SQL
-    generated column expression so matching is symmetric."""
+    """Lowercase, strip accents and punctuation, collapse whitespace.
+
+    Matches SQL `inci_normalize` for ASCII and combining-accent input.
+    Residual divergence: SQL unaccent transliterates characters that have
+    no Unicode decomposition (ø->o, æ->ae, œ->oe) while NFKD drops them
+    here. Correctness-bearing comparisons stay same-side (SQL<->SQL or
+    Python<->Python), so the divergence only costs a match candidate.
+    """
     if not text:
         return ""
     text = unicodedata.normalize("NFKD", text)
@@ -214,9 +226,40 @@ def _strip_may_contain_section(text: str) -> str:
 
 def _clean_token(token: str) -> str:
     token = _strip_label_prefix(token.strip())
-    token = token.strip(" \t\r\n:.-")
+    token = token.strip(" \t\r\n:.-*")
+    token = _TRAILING_CONCENTRATION.sub("", token)
+    # Cosmetic labels use both slash directions for multilingual synonyms.
+    token = token.replace("\\", "/")
     token = _WHITESPACE.sub(" ", token)
     return token
+
+
+def _split_ingredient_commas(label: str) -> list[str]:
+    """Split list delimiters without breaking names such as 1,2-Hexanediol.
+
+    Parenthetical synonyms and color indexes belong to the surrounding INCI
+    name, so commas inside parentheses are not list boundaries either.
+    """
+    chunks: list[str] = []
+    start = 0
+    depth = 0
+    for index, char in enumerate(label):
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth = max(0, depth - 1)
+        elif char == "," and depth == 0:
+            numeric_comma = (
+                index > 0
+                and index + 1 < len(label)
+                and label[index - 1].isdigit()
+                and label[index + 1].isdigit()
+            )
+            if not numeric_comma:
+                chunks.append(label[start:index])
+                start = index + 1
+    chunks.append(label[start:])
+    return chunks
 
 
 def _is_noise_token(token: str) -> bool:
@@ -348,41 +391,31 @@ def tokenize_label(
     """
     if not label:
         return []
+    # Drug-fact labels commonly repeat active/inactive headings. Treat each
+    # heading as a boundary; its shade note and concentration are metadata,
+    # not ingredient tokens.
+    label = _SECTION_HEADER.sub(",", label)
     label = _extract_ingredient_section(label)
     label = _strip_label_prefix(label)
     label = _strip_may_contain_section(label)
+    has_explicit_separators = bool(_HAS_SEPARATOR.search(label))
+    bullet_delimited = "•" in label or "·" in label
     # Replace bullet-y separators with commas
     label = label.replace("·", ",").replace("•", ",").replace(";", ",").replace("\n", ",")
     parts = []
-    for chunk in label.split(","):
+    for chunk in _split_ingredient_commas(label):
         chunk = _clean_token(chunk)
         if not chunk:
             continue
-        # Split parenthetical content out as its own token
-        depth = 0
-        buf = []
-        for ch in chunk:
-            if ch == "(":
-                if buf:
-                    parts.append(_clean_token("".join(buf)))
-                    buf = []
-                depth += 1
-            elif ch == ")":
-                if buf:
-                    parts.append(_clean_token("".join(buf)))
-                    buf = []
-                depth = max(0, depth - 1)
-            else:
-                buf.append(ch)
-        if buf:
-            parts.append(_clean_token("".join(buf)))
+        parts.append(chunk)
 
     cleaned = [p for p in parts if p and not _is_noise_token(p)]
-    cleaned = _repair_comma_split_compounds(cleaned, known_terms)
-    cleaned = _repair_known_sequence_splits(cleaned, known_terms)
+    if not bullet_delimited:
+        cleaned = _repair_comma_split_compounds(cleaned, known_terms)
+        cleaned = _repair_known_sequence_splits(cleaned, known_terms)
     out: list[str] = []
     for token in cleaned:
-        if _looks_like_space_delimited_inci_run(token):
+        if not has_explicit_separators and _looks_like_space_delimited_inci_run(token):
             out.extend(_segment_space_delimited_run(token, known_terms))
         else:
             out.append(token)

@@ -27,3 +27,44 @@ jobs:
           SUPABASE_URL: http://localhost:54321
           SUPABASE_SERVICE_ROLE_KEY: dummy
         run: pytest -q
+
+  submission-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        working-directory: submission-pipeline
+        run: python -m pip install -e ".[dev]"
+      - name: Lint and test
+        working-directory: submission-pipeline
+        env:
+          SUPABASE_URL: http://localhost:54321
+          SUPABASE_SERVICE_ROLE_KEY: dummy
+        run: |
+          ruff check src tests
+          pytest -q
+
+  curator-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: curator-ui/pnpm-lock.yaml
+      - name: Install
+        working-directory: curator-ui
+        run: pnpm install --frozen-lockfile
+      - name: Lint, test, and build
+        working-directory: curator-ui
+        run: |
+          pnpm lint
+          pnpm test
+          pnpm build

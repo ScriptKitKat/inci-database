@@ -38,6 +38,9 @@ def reset_client() -> None:
 
 def submit_batch(requests: list[dict[str, Any]]) -> str:
     """Submit [{custom_id, params}] and return the Anthropic batch id."""
+    ids = [request["custom_id"] for request in requests]
+    if len(ids) != len(set(ids)):
+        raise ValueError("duplicate custom_id in batch")
     for request in requests:
         if len(request["custom_id"]) > CUSTOM_ID_MAX_LENGTH:
             raise ValueError(f"custom_id too long: {request['custom_id']}")

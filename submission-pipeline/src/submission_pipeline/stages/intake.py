@@ -9,6 +9,7 @@ existing ingredient), and queue the rest for LLM verification.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Any
@@ -182,7 +183,15 @@ def _build_token_row(submission_id: str, position: int, raw_token: str) -> dict[
 def _attach_evidence(token_row: dict[str, Any]) -> None:
     gathered = evidence_mod.gather_evidence(token_row["normalized_token"], _lookups())
     token_row["evidence"] = [ev.to_json() for ev in gathered if ev.found]
-    ingredient_id = _deterministic_ingredient(gathered)
+    if evidence_mod.has_spelling_disagreement(token_row["evidence"]):
+        token_row["resolution"] = "pending_human"
+        db.audit(
+            token_row["submission_id"],
+            "token_escalated",
+            {"position": token_row["position"], "trigger": "source_disagreement"},
+        )
+        return
+    ingredient_id = _deterministic_ingredient(gathered, token_row["raw_token"])
     if ingredient_id:
         token_row.update(
             {
@@ -195,11 +204,13 @@ def _attach_evidence(token_row: dict[str, Any]) -> None:
         )
 
 
-def _deterministic_ingredient(gathered: list[Evidence]) -> str | None:
+def _deterministic_ingredient(gathered: list[Evidence], raw_token: str = "") -> str | None:
     """An exact authoritative hit whose canonical maps to an existing
     ingredient resolves without the LLM (e.g. a CosIng synonym -> catalog)."""
     for ev in gathered:
         if not ev.found or not ev.canonical or ev.source not in evidence_mod.SPELLING_SOURCES:
+            continue
+        if re.findall(r"\d+", raw_token) != re.findall(r"\d+", ev.canonical):
             continue
         match = matching.match_token(ev.canonical)
         if match and match.confidence >= settings().exact_match_confidence:
