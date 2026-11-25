@@ -35,6 +35,7 @@ GLOW_RECIPE_DOMAIN_MIGRATION = (
     MIGRATIONS_DIR / "20260714000600_glow_recipe_product_domain.sql"
 )
 COMMON_DOMAINS_MIGRATION = MIGRATIONS_DIR / "20260714000700_common_trusted_product_domains.sql"
+BATCH_MATCH_MIGRATION = MIGRATIONS_DIR / "20261125050730_match_ingredients_batch.sql"
 
 
 def _latest_function_sql(name: str) -> str:
@@ -168,6 +169,16 @@ def test_inci_normalize_unaccents_first_and_recomputes_stored_columns():
     assert "UPDATE ingredient_aliases SET alias = alias" in sql
     # The fixed definition must be the live one.
     assert "btrim(" in _latest_function_sql("inci_normalize")
+
+
+def test_batch_ingredient_match_exposes_ordered_non_nullable_matches_to_api_roles():
+    sql = BATCH_MATCH_MIGRATION.read_text()
+    assert "public.match_ingredients_batch(inputs TEXT[])" in sql
+    assert "RETURNS TABLE (input_token TEXT, ingredient_id UUID, match_type TEXT, confidence REAL)" in sql
+    assert "unnest(inputs) WITH ORDINALITY" in sql
+    assert "CROSS JOIN LATERAL public.match_ingredient(requested.token)" in sql
+    assert "ORDER BY requested.ord" in sql
+    assert "TO anon, authenticated, service_role" in sql
 
 
 def test_verification_batches_are_claimed_and_attached_transactionally():

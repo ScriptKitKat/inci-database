@@ -782,7 +782,7 @@ def slugify(text: str) -> str:
 
 
 def normalize_brand(text: str) -> str:
-    return re.sub(r"\s+", " ", text.strip()).lower()
+    return text.strip(" ").upper()
 
 
 def req_json(key: str, method: str, path: str, body: Any = None, extra_headers: dict[str, str] | None = None) -> Any:
