@@ -37,6 +37,7 @@ GLOW_RECIPE_DOMAIN_MIGRATION = (
 COMMON_DOMAINS_MIGRATION = MIGRATIONS_DIR / "20260714000700_common_trusted_product_domains.sql"
 BATCH_MATCH_MIGRATION = MIGRATIONS_DIR / "20261125050730_match_ingredients_batch.sql"
 BATCH_MATCH_LIMIT_MIGRATION = MIGRATIONS_DIR / "20261125051301_limit_ingredient_match_batch.sql"
+CURATED_SEEDER_GRANTS_MIGRATION = MIGRATIONS_DIR / "20261125051302_curated_seeder_insert_grants.sql"
 
 
 def _latest_function_sql(name: str) -> str:
@@ -188,6 +189,14 @@ def test_batch_ingredient_match_rejects_oversized_inputs_before_matching():
     assert "IF cardinality(inputs) > 50 THEN" in sql
     assert "USING ERRCODE = '22023'" in sql
     assert sql.index("IF cardinality(inputs)") < sql.index("public.match_ingredient(requested.token)")
+
+
+def test_curated_seeder_grants_only_required_insert_columns():
+    sql = CURATED_SEEDER_GRANTS_MIGRATION.read_text()
+    assert sql.count("GRANT ") == 3
+    assert "GRANT INSERT (name, slug) ON public.brands TO service_role;" in sql
+    assert "INSERT (name, slug, brand_id, short_description) ON public.products TO service_role;" in sql
+    assert "INSERT (product_id, ingredient_id, position) ON public.product_ingredients TO service_role;" in sql
 
 
 def test_verification_batches_are_claimed_and_attached_transactionally():
