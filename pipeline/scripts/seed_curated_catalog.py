@@ -11,7 +11,6 @@ import os
 import re
 import sys
 import urllib.error
-import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -787,6 +786,8 @@ def normalize_brand(text: str) -> str:
 
 def req_json(key: str, method: str, path: str, body: Any = None, extra_headers: dict[str, str] | None = None) -> Any:
     headers = {"apikey": key, "Content-Type": "application/json"}
+    if key.count(".") == 2:
+        headers["Authorization"] = f"Bearer {key}"
     if extra_headers:
         headers.update(extra_headers)
     data = json.dumps(body).encode() if body is not None else None
@@ -830,37 +831,41 @@ def main() -> int:
 
     for prod in CURATED_PRODUCTS:
         b_name = prod["brand"]
-        b_norm = normalize_brand(b_name)
-        brand_id = brand_by_norm.get(b_norm)
-        if not brand_id:
-            res = req_json(
-                key,
-                "POST",
-                "brands",
-                {"name": b_name, "slug": slugify(b_name)},
-                extra_headers={"Prefer": "return=representation"},
-            )
-            brand_id = res[0]["id"]
-            brand_by_norm[b_norm] = brand_id
-            created_brands += 1
-
-        p_slug = slugify(f"{b_name}-{prod['name']}")
-        existing = req_json(key, "GET", f"products?slug=eq.{urllib.parse.quote(p_slug)}&select=id") or []
+        existing = req_json(
+            key,
+            "POST",
+            "rpc/find_product_by_identity",
+            {"p_brand_name": b_name, "p_product_name": prod["name"]},
+        ) or []
         if existing:
-            product_id = existing[0]["id"]
+            product_id = existing[0]["product_id"]
             existing_links = req_json(
                 key,
                 "GET",
                 f"product_ingredients?product_id=eq.{product_id}&select=ingredient_id,position",
             ) or []
         else:
+            b_norm = normalize_brand(b_name)
+            brand_id = brand_by_norm.get(b_norm)
+            if not brand_id:
+                res = req_json(
+                    key,
+                    "POST",
+                    "brands",
+                    {"name": b_name, "slug": slugify(b_name)},
+                    extra_headers={"Prefer": "return=representation"},
+                )
+                brand_id = res[0]["id"]
+                brand_by_norm[b_norm] = brand_id
+                created_brands += 1
+
             p_res = req_json(
                 key,
                 "POST",
                 "products",
                 {
                     "name": prod["name"],
-                    "slug": p_slug,
+                    "slug": slugify(f"{b_name}-{prod['name']}"),
                     "brand_id": brand_id,
                     "short_description": prod["short_description"],
                 },
