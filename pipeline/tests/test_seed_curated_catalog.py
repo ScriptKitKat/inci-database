@@ -14,7 +14,9 @@ from scripts import seed_curated_catalog
           {"ingredient_id": "glycerin-id", "position": 5}], []),
     ],
 )
-def test_seed_reuses_brand_and_backfills_missing_links(monkeypatch, existing_links, expected_links):
+def test_seed_reuses_brand_and_backfills_missing_links(
+    monkeypatch, capsys, existing_links, expected_links
+):
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "dummy")
     monkeypatch.setattr(
         seed_curated_catalog,
@@ -23,7 +25,7 @@ def test_seed_reuses_brand_and_backfills_missing_links(monkeypatch, existing_lin
             "brand": "  Example  Brand ",
             "name": "Cleanser",
             "short_description": "Daily cleanser",
-            "ingredients": ["Water", "Glycerin", "Water"],
+            "ingredients": ["Water", "Glycerin", "Water", "sh-Oligopeptide-1"],
         }],
     )
 
@@ -31,10 +33,14 @@ def test_seed_reuses_brand_and_backfills_missing_links(monkeypatch, existing_lin
 
     def request(key, method, path, body=None, extra_headers=None):
         if (method, path) == ("POST", "rpc/match_ingredients_batch"):
-            assert body == {"inputs": ["Glycerin", "Water"]}
+            assert body == {"inputs": ["Glycerin", "Water", "sh-Oligopeptide-1"]}
             return [
-                {"input_token": "Water", "ingredient_id": "water-id", "confidence": 1.0},
-                {"input_token": "Glycerin", "ingredient_id": "glycerin-id", "confidence": 1.0},
+                {"input_token": "Water", "ingredient_id": "water-id",
+                 "confidence": 1.0, "match_type": "canonical_exact"},
+                {"input_token": "Glycerin", "ingredient_id": "glycerin-id",
+                 "confidence": 0.98, "match_type": "alias_exact"},
+                {"input_token": "sh-Oligopeptide-1", "ingredient_id": "oligopeptide-2-id",
+                 "confidence": 0.92, "match_type": "alias_fuzzy"},
             ]
         if (method, path) == ("GET", "brands?select=id,name,slug,normalized&limit=500"):
             return [{"id": "existing-brand", "normalized": "EXAMPLE  BRAND"}]
@@ -58,6 +64,7 @@ def test_seed_reuses_brand_and_backfills_missing_links(monkeypatch, existing_lin
     monkeypatch.setattr(seed_curated_catalog, "req_json", request)
 
     assert seed_curated_catalog.main() == 0
+    assert "Unmatched or fuzzy tokens (skipped): ['sh-Oligopeptide-1']" in capsys.readouterr().out
     assert added_links == [
         {"product_id": "product-id", "ingredient_id": ingredient_id, "position": position}
         for ingredient_id, position in expected_links

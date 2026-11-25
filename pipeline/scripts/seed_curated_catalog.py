@@ -813,13 +813,13 @@ def main() -> int:
         chunk = all_tokens[i : i + 25]
         resolved_rows = req_json(key, "POST", "rpc/match_ingredients_batch", {"inputs": chunk})
         for row in resolved_rows or []:
-            if row.get("confidence", 0) >= 0.70:
+            if row["match_type"] in {"canonical_exact", "alias_exact"}:
                 token_to_ing[row["input_token"]] = row["ingredient_id"]
 
     unmatched = [t for t in all_tokens if t not in token_to_ing]
     print(f"Resolved {len(token_to_ing)}/{len(all_tokens)} unique INCI tokens ({len(unmatched)} unmatched).")
     if unmatched:
-        print("Unmatched tokens (skipped):", unmatched[:25])
+        print("Unmatched or fuzzy tokens (skipped):", unmatched[:25])
 
     # 2. Upsert brands
     existing_brands = req_json(key, "GET", "brands?select=id,name,slug,normalized&limit=500") or []
