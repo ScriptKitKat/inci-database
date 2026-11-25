@@ -36,6 +36,7 @@ GLOW_RECIPE_DOMAIN_MIGRATION = (
 )
 COMMON_DOMAINS_MIGRATION = MIGRATIONS_DIR / "20260714000700_common_trusted_product_domains.sql"
 BATCH_MATCH_MIGRATION = MIGRATIONS_DIR / "20261125050730_match_ingredients_batch.sql"
+BATCH_MATCH_LIMIT_MIGRATION = MIGRATIONS_DIR / "20261125051301_limit_ingredient_match_batch.sql"
 
 
 def _latest_function_sql(name: str) -> str:
@@ -172,13 +173,21 @@ def test_inci_normalize_unaccents_first_and_recomputes_stored_columns():
 
 
 def test_batch_ingredient_match_exposes_ordered_non_nullable_matches_to_api_roles():
-    sql = BATCH_MATCH_MIGRATION.read_text()
-    assert "public.match_ingredients_batch(inputs TEXT[])" in sql
-    assert "RETURNS TABLE (input_token TEXT, ingredient_id UUID, match_type TEXT, confidence REAL)" in sql
-    assert "unnest(inputs) WITH ORDINALITY" in sql
-    assert "CROSS JOIN LATERAL public.match_ingredient(requested.token)" in sql
-    assert "ORDER BY requested.ord" in sql
-    assert "TO anon, authenticated, service_role" in sql
+    for migration in (BATCH_MATCH_MIGRATION, BATCH_MATCH_LIMIT_MIGRATION):
+        sql = migration.read_text()
+        assert "public.match_ingredients_batch(inputs TEXT[])" in sql
+        assert "RETURNS TABLE (input_token TEXT, ingredient_id UUID, match_type TEXT, confidence REAL)" in sql
+        assert "unnest(inputs) WITH ORDINALITY" in sql
+        assert "CROSS JOIN LATERAL public.match_ingredient(requested.token)" in sql
+        assert "ORDER BY requested.ord" in sql
+    assert "TO anon, authenticated, service_role" in BATCH_MATCH_MIGRATION.read_text()
+
+
+def test_batch_ingredient_match_rejects_oversized_inputs_before_matching():
+    sql = BATCH_MATCH_LIMIT_MIGRATION.read_text()
+    assert "IF cardinality(inputs) > 50 THEN" in sql
+    assert "USING ERRCODE = '22023'" in sql
+    assert sql.index("IF cardinality(inputs)") < sql.index("public.match_ingredient(requested.token)")
 
 
 def test_verification_batches_are_claimed_and_attached_transactionally():
