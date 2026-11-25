@@ -11,7 +11,6 @@ import os
 import re
 import sys
 import urllib.error
-import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -787,6 +786,8 @@ def normalize_brand(text: str) -> str:
 
 def req_json(key: str, method: str, path: str, body: Any = None, extra_headers: dict[str, str] | None = None) -> Any:
     headers = {"apikey": key, "Content-Type": "application/json"}
+    if key.count(".") == 2:
+        headers["Authorization"] = f"Bearer {key}"
     if extra_headers:
         headers.update(extra_headers)
     data = json.dumps(body).encode() if body is not None else None
@@ -812,13 +813,13 @@ def main() -> int:
         chunk = all_tokens[i : i + 25]
         resolved_rows = req_json(key, "POST", "rpc/match_ingredients_batch", {"inputs": chunk})
         for row in resolved_rows or []:
-            if row.get("confidence", 0) >= 0.70:
+            if row["match_type"] in {"canonical_exact", "alias_exact"}:
                 token_to_ing[row["input_token"]] = row["ingredient_id"]
 
     unmatched = [t for t in all_tokens if t not in token_to_ing]
     print(f"Resolved {len(token_to_ing)}/{len(all_tokens)} unique INCI tokens ({len(unmatched)} unmatched).")
     if unmatched:
-        print("Unmatched tokens (skipped):", unmatched[:25])
+        print("Unmatched or fuzzy tokens (skipped):", unmatched[:25])
 
     # 2. Upsert brands
     existing_brands = req_json(key, "GET", "brands?select=id,name,slug,normalized&limit=500") or []
@@ -830,43 +831,53 @@ def main() -> int:
 
     for prod in CURATED_PRODUCTS:
         b_name = prod["brand"]
-        b_norm = normalize_brand(b_name)
-        brand_id = brand_by_norm.get(b_norm)
-        if not brand_id:
-            res = req_json(
-                key,
-                "POST",
-                "brands",
-                {"name": b_name, "slug": slugify(b_name)},
-                extra_headers={"Prefer": "return=representation"},
-            )
-            brand_id = res[0]["id"]
-            brand_by_norm[b_norm] = brand_id
-            created_brands += 1
-
-        p_slug = slugify(f"{b_name}-{prod['name']}")
-        existing = req_json(key, "GET", f"products?slug=eq.{urllib.parse.quote(p_slug)}&select=id") or []
-        if existing:
-            continue
-
-        p_res = req_json(
+        existing = req_json(
             key,
             "POST",
-            "products",
-            {
-                "name": prod["name"],
-                "slug": p_slug,
-                "brand_id": brand_id,
-                "short_description": prod["short_description"],
-            },
-            extra_headers={"Prefer": "return=representation"},
-        )
-        product_id = p_res[0]["id"]
-        created_products += 1
+            "rpc/find_product_by_identity",
+            {"p_brand_name": b_name, "p_product_name": prod["name"]},
+        ) or []
+        if existing:
+            product_id = existing[0]["product_id"]
+            existing_links = req_json(
+                key,
+                "GET",
+                f"product_ingredients?product_id=eq.{product_id}&select=ingredient_id,position",
+            ) or []
+        else:
+            b_norm = normalize_brand(b_name)
+            brand_id = brand_by_norm.get(b_norm)
+            if not brand_id:
+                res = req_json(
+                    key,
+                    "POST",
+                    "brands",
+                    {"name": b_name, "slug": slugify(b_name)},
+                    extra_headers={"Prefer": "return=representation"},
+                )
+                brand_id = res[0]["id"]
+                brand_by_norm[b_norm] = brand_id
+                created_brands += 1
 
-        seen_ing: set[str] = set()
+            p_res = req_json(
+                key,
+                "POST",
+                "products",
+                {
+                    "name": prod["name"],
+                    "slug": slugify(f"{b_name}-{prod['name']}"),
+                    "brand_id": brand_id,
+                    "short_description": prod["short_description"],
+                },
+                extra_headers={"Prefer": "return=representation"},
+            )
+            product_id = p_res[0]["id"]
+            created_products += 1
+            existing_links = []
+
+        seen_ing = {link["ingredient_id"] for link in existing_links}
         link_rows = []
-        pos = 1
+        pos = max((link["position"] for link in existing_links), default=0) + 1
         for tok in prod["ingredients"]:
             ing_id = token_to_ing.get(tok)
             if not ing_id or ing_id in seen_ing:
