@@ -50,7 +50,7 @@ def run(force: bool = False, process_all: bool = False) -> None:
                 abstracts = pm.fetch(pmids)
                 time.sleep(rate_delay)
             except Exception as exc:
-                log.warning("pubmed failed for %s: %s", inci_name, exc)
+                log.warning("pubmed failed for %s: %s", inci_name, exc, exc_info=not s.ncbi_api_key)
                 continue
 
             for abstract in abstracts:

@@ -7,7 +7,7 @@ mirrored through a restricted RPC before staging tokens reference them.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from typing import Any
 
@@ -178,7 +178,7 @@ def finalize_submission_verification(
 def release_stale_claims(status: str, older_than_minutes: int) -> dict[str, int]:
     """Recover claims abandoned by a crashed worker: back to `received`,
     or `failed` once the submission has exhausted its attempts."""
-    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=older_than_minutes)).isoformat()
+    cutoff = (datetime.now(UTC) - timedelta(minutes=older_than_minutes)).isoformat()
     failed = (
         client()
         .table("product_submissions")

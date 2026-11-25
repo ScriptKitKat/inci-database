@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from submission_pipeline.models import Evidence
 from submission_pipeline.stages import intake
@@ -181,7 +181,7 @@ def test_evidence_stores_hits_only_and_resolves_source_to_catalog(
         Evidence(source="pubchem", found=False),
         Evidence(source="cosing", found=True, canonical="Panthenol", confidence=0.97),
     ]
-    monkeypatch.setattr(intake, "_lookups", lambda: [])
+    monkeypatch.setattr(intake, "_lookups", list)
     monkeypatch.setattr(intake.evidence_mod, "gather_evidence", lambda *_: gathered)
     row = intake._build_token_row(str(uuid.uuid4()), 4, "D-Panthenol")
     intake._attach_evidence(row)
@@ -199,7 +199,7 @@ def test_evidence_cannot_drop_numeric_qualifier_when_matching_catalog(
     gathered = [
         Evidence(source="incidecoder", found=True, canonical="Hexanediol", confidence=0.95)
     ]
-    monkeypatch.setattr(intake, "_lookups", lambda: [])
+    monkeypatch.setattr(intake, "_lookups", list)
     monkeypatch.setattr(intake.evidence_mod, "gather_evidence", lambda *_: gathered)
     row = intake._build_token_row(str(uuid.uuid4()), 7, "1,2-Hexanediol")
 
@@ -220,7 +220,7 @@ def test_source_disagreement_escalates_at_intake_instead_of_resolving(
         Evidence(source="cosing", found=True, canonical="Tocopheryl Acetate", confidence=0.97),
         Evidence(source="incidecoder", found=True, canonical="Tocopherol Acetate", confidence=0.92),
     ]
-    monkeypatch.setattr(intake, "_lookups", lambda: [])
+    monkeypatch.setattr(intake, "_lookups", list)
     monkeypatch.setattr(intake.evidence_mod, "gather_evidence", lambda *_: gathered)
 
     row = intake._build_token_row(str(uuid.uuid4()), 4, "Tocopherol Acetate")
@@ -239,7 +239,7 @@ def test_agreeing_sources_still_resolve_deterministically(fake_db, fake_matcher,
         Evidence(source="cosing", found=True, canonical="Panthenol", confidence=0.97),
         Evidence(source="incidecoder", found=True, canonical="PANTHENOL", confidence=0.92),
     ]
-    monkeypatch.setattr(intake, "_lookups", lambda: [])
+    monkeypatch.setattr(intake, "_lookups", list)
     monkeypatch.setattr(intake.evidence_mod, "gather_evidence", lambda *_: gathered)
 
     row = intake._build_token_row(str(uuid.uuid4()), 4, "D-Panthenol")
@@ -253,11 +253,11 @@ def test_agreeing_sources_still_resolve_deterministically(fake_db, fake_matcher,
 def test_stale_triaging_claims_are_reaped_before_claiming(fake_db, monkeypatch):
     processed: list[str] = []
     monkeypatch.setattr(intake, "_process", lambda row, counters: processed.append(row["id"]))
-    old = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    old = (datetime.now(UTC) - timedelta(hours=2)).isoformat()
     stale = fake_db.add_submission(status="triaging", locked_at=old, attempt_count=1)
     exhausted = fake_db.add_submission(status="triaging", locked_at=old, attempt_count=99)
     fresh = fake_db.add_submission(
-        status="triaging", locked_at=datetime.now(timezone.utc).isoformat(), attempt_count=1
+        status="triaging", locked_at=datetime.now(UTC).isoformat(), attempt_count=1
     )
 
     counters = intake.run()

@@ -6,9 +6,10 @@ plus its tokenized + matched ingredient list. Position = label order.
 
 from __future__ import annotations
 
-import logging
 import hashlib
-from datetime import datetime, timezone
+import logging
+from datetime import UTC, datetime
+
 from ..config import settings
 from ..db import (
     client,
@@ -116,7 +117,7 @@ def run(force: bool = False) -> None:
                         "name": product.name,
                         "slug": product_slug,
                         "brand_id": brand_id,
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                        "updated_at": datetime.now(UTC).isoformat(),
                     },
                     on_conflict="slug",
                 )

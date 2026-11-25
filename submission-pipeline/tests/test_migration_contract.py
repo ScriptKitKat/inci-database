@@ -62,6 +62,18 @@ def test_apply_writes_normalized_product_tables():
     assert "INSERT INTO product_metadata" not in sql
 
 
+def test_expanded_cosing_functions_preserve_distinct_roles():
+    sql = _latest_function_sql("public.ingredient_functions_are_valid")
+    assert "'propellant'" in sql
+    assert "'hair_conditioning'" in sql
+    assert "'skin_conditioning'" in sql
+    assert "'uv_absorber'" in sql
+    assert "'uv_filtering'" in sql
+    assert "'surfactant'" in sql
+    assert "'surfactant_cleansing'" in sql
+    assert "'not_reported'" not in sql
+
+
 def test_new_ingredients_get_enrichment_shell_and_queue():
     sql = _latest_function_sql("apply_product_submission")
     assert "UPDATE ingredient_information" in sql

@@ -57,7 +57,7 @@ def submit(limit: int | None = None) -> dict[str, int]:
     for sub in rows:
         try:
             sub_requests = _prepare_submission(sub, counters)
-        except Exception as exc:  # noqa: BLE001 - isolate per submission
+        except Exception as exc:
             logger.exception("verify submit failed for submission %s", sub["id"])
             db.update_submission(
                 sub["id"], {"verification_group_id": None, "locked_at": None}
@@ -342,7 +342,7 @@ def poll() -> dict[str, int]:
             try:
                 _apply_results(sub, results)
                 counters["finalized"] += 1
-            except Exception as exc:  # noqa: BLE001 - isolate per submission
+            except Exception as exc:
                 logger.exception("verify poll failed for submission %s", sub["id"])
                 db.update_submission(sub["id"], {"anthropic_batch_id": None})
                 db.fail_submission(sub["id"], f"{type(exc).__name__}: {exc}")
@@ -525,9 +525,13 @@ def _evaluate_judgment(
             return {"resolution": "pending_human"}, "junk_at_top_positions"
         return {"resolution": "junk", "resolution_source": "llm"}, None
 
-    if judgment.verdict == "matched" and choice and choice.kind == "existing":
-        if judgment.confidence >= s.match_confirm_threshold:
-            return _matched_fields(choice), None
+    if (
+        judgment.verdict == "matched"
+        and choice
+        and choice.kind == "existing"
+        and judgment.confidence >= s.match_confirm_threshold
+    ):
+        return _matched_fields(choice), None
 
     if judgment.verdict == "new_ingredient" and choice:
         if choice.kind == "existing":
@@ -826,7 +830,7 @@ def coverage(submitted: list[str], online: list[str]) -> tuple[float, float]:
 def _extract_json(text: str | None) -> Any:
     if not text:
         return None
-    match = re.search(r"\{.*\}", text, re.S)
+    match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
         return None
     try:

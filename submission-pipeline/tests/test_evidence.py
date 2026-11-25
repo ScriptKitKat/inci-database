@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import httpx
 from urllib.parse import parse_qs
+
+import httpx
 
 from submission_pipeline import evidence
 

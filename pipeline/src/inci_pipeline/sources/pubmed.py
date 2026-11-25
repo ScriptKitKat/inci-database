@@ -7,6 +7,7 @@ NCBI_API_KEY in the env to lift the cap.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Self
 
 import httpx
 from lxml import etree
@@ -37,7 +38,7 @@ class PubMedClient:
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "PubMedClient":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_: object) -> None:

@@ -15,12 +15,15 @@ returns None immediately so we don't burn the rate budget.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
+from typing import Self
 
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 BASE = "https://pubchem.ncbi.nlm.nih.gov/rest/pug"
+log = logging.getLogger(__name__)
 
 
 def _is_retryable(exc: BaseException) -> bool:
@@ -43,7 +46,7 @@ class PubChemClient:
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "PubChemClient":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_: object) -> None:
@@ -90,6 +93,6 @@ class PubChemClient:
                     .get("IUPACName")
                 )
             except Exception:
-                iupac = None
+                log.debug("Could not read optional IUPAC name for CID %s", cid, exc_info=True)
 
         return PubChemRecord(cid=cid, iupac_name=iupac, synonyms=synonyms[:50])

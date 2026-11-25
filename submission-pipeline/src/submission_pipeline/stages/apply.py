@@ -27,7 +27,7 @@ def run(limit: int | None = None) -> dict[str, int]:
         try:
             result = db.apply_submission(row["id"])
             counters[result] = counters.get(result, 0) + 1
-        except Exception as exc:  # noqa: BLE001 - isolate per submission
+        except Exception as exc:
             logger.exception("apply failed for submission %s", row["id"])
             db.fail_submission(row["id"], f"{type(exc).__name__}: {exc}")
             counters["failed"] += 1
@@ -72,7 +72,7 @@ def _submit_describe_batch(counters: dict[str, int]) -> None:
     for sub in subs:
         try:
             context = db.fetch_product_description_context(sub["product_id"])
-        except Exception:  # noqa: BLE001 - context fetch must not block the tick
+        except Exception:
             logger.exception("describe context failed for submission %s", sub["id"])
             counters["errored"] += 1
             continue

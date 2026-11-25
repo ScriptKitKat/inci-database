@@ -48,7 +48,7 @@ def run(force: bool = False) -> None:
             try:
                 records = wd.lookup_by_cas(batch)
             except Exception as exc:
-                log.warning("wikidata batch failed: %s", exc)
+                log.warning("wikidata batch failed: %s", exc, exc_info=True)
                 continue
 
             for record in records:
