@@ -847,26 +847,32 @@ def main() -> int:
         p_slug = slugify(f"{b_name}-{prod['name']}")
         existing = req_json(key, "GET", f"products?slug=eq.{urllib.parse.quote(p_slug)}&select=id") or []
         if existing:
-            continue
+            product_id = existing[0]["id"]
+            existing_links = req_json(
+                key,
+                "GET",
+                f"product_ingredients?product_id=eq.{product_id}&select=ingredient_id,position",
+            ) or []
+        else:
+            p_res = req_json(
+                key,
+                "POST",
+                "products",
+                {
+                    "name": prod["name"],
+                    "slug": p_slug,
+                    "brand_id": brand_id,
+                    "short_description": prod["short_description"],
+                },
+                extra_headers={"Prefer": "return=representation"},
+            )
+            product_id = p_res[0]["id"]
+            created_products += 1
+            existing_links = []
 
-        p_res = req_json(
-            key,
-            "POST",
-            "products",
-            {
-                "name": prod["name"],
-                "slug": p_slug,
-                "brand_id": brand_id,
-                "short_description": prod["short_description"],
-            },
-            extra_headers={"Prefer": "return=representation"},
-        )
-        product_id = p_res[0]["id"]
-        created_products += 1
-
-        seen_ing: set[str] = set()
+        seen_ing = {link["ingredient_id"] for link in existing_links}
         link_rows = []
-        pos = 1
+        pos = max((link["position"] for link in existing_links), default=0) + 1
         for tok in prod["ingredients"]:
             ing_id = token_to_ing.get(tok)
             if not ing_id or ing_id in seen_ing:
