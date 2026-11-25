@@ -50,11 +50,10 @@ class PubMedClient:
             base["api_key"] = self.api_key
         return base
 
+    _SKIN_SCOPE = "(skin[tiab] OR dermal[tiab] OR topical[tiab] OR cosmetic[tiab] OR dermatology[tiab])"
+
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, max=5))
-    def search(self, inci_name: str, cas: str | None = None, max_results: int = 5) -> list[str]:
-        term = f'"{inci_name}"[tiab]'
-        if cas:
-            term = f"({term} OR {cas}[rn])"
+    def _esearch(self, term: str, max_results: int) -> list[str]:
         params = self._params(
             {"term": term, "retmax": str(max_results), "sort": "relevance"}
         )
@@ -62,6 +61,15 @@ class PubMedClient:
         resp.raise_for_status()
         root = etree.fromstring(resp.content)
         return [el.text for el in root.findall(".//IdList/Id") if el.text]
+
+    def search(self, inci_name: str, cas: str | None = None, max_results: int = 5) -> list[str]:
+        base = f'"{inci_name}"[tiab]'
+        if cas:
+            base = f"({base} OR {cas}[rn])"
+        scoped = self._esearch(f"({base}) AND {self._SKIN_SCOPE}", max_results=max_results)
+        if scoped:
+            return scoped
+        return self._esearch(base, max_results=max_results)
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, max=5))
     def fetch(self, pmids: list[str]) -> list[PubMedAbstract]:

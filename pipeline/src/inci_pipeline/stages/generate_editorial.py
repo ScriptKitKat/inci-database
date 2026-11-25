@@ -112,7 +112,7 @@ def _fetch_abstracts(ingredient_id: UUID, limit: int = 5) -> list[dict]:
     res = (
         client()
         .table("ingredient_sources")
-        .select("title, raw_payload")
+        .select("external_id, title, raw_payload")
         .eq("ingredient_id", str(ingredient_id))
         .eq("source_type", "pubmed")
         .limit(limit)

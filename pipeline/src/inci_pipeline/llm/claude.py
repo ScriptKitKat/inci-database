@@ -48,10 +48,10 @@ def build_editorial_prompt(
     and by the manual-paste export workflow."""
     prompt_template = _PROMPT_PATH.read_text(encoding="utf-8")
     abstracts_text = "\n\n".join(
-        f"PMID: {a.get('raw_payload', {}).get('pmid', 'unknown')}\n"
+        f"PMID: {a.get('external_id') or (a.get('raw_payload') or {}).get('pmid') or 'unknown'}\n"
         f"Title: {a.get('title') or ''}\n"
-        f"Year: {a.get('raw_payload', {}).get('year', '')}\n"
-        f"Abstract: {a.get('raw_payload', {}).get('abstract', '')}"
+        f"Year: {(a.get('raw_payload') or {}).get('year', '')}\n"
+        f"Abstract: {(a.get('raw_payload') or {}).get('abstract', '')}"
         for a in abstracts
     )
     return prompt_template.format(
