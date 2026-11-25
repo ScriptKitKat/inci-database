@@ -36,7 +36,10 @@ def run(force: bool = False) -> None:
             try:
                 record = pub.lookup_by_cas(cas)
             except Exception as exc:
-                log.warning("pubchem lookup failed for %s (%s): %s", row["inci_name"], cas, exc)
+                log.warning(
+                    "pubchem lookup failed for %s (%s): %s", row["inci_name"], cas, exc,
+                    exc_info=True,
+                )
                 continue
             if record is None:
                 continue

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Any
 
@@ -50,7 +50,7 @@ def run(limit: int | None = None) -> dict[str, int]:
     for row in rows:
         try:
             _process(row, counters)
-        except Exception as exc:  # noqa: BLE001 - one bad submission must not stop the tick
+        except Exception as exc:
             logger.exception("intake failed for submission %s", row["id"])
             db.fail_submission(row["id"], f"{type(exc).__name__}: {exc}")
             counters["failed"] += 1
@@ -219,4 +219,4 @@ def _deterministic_ingredient(gathered: list[Evidence], raw_token: str = "") -> 
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()

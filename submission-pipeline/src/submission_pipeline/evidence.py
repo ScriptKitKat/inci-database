@@ -131,7 +131,7 @@ class CosIngSearchLookup:
                         confidence=COSING_CONFIDENCE,
                         enrichment={k: v for k, v in enrichment.items() if v is not None},
                     )
-        except Exception:  # noqa: BLE001 - best-effort source, never fatal
+        except Exception:
             logger.debug("cosing lookup failed for %r", normalized, exc_info=True)
         return Evidence(source=self.source, found=False)
 
@@ -153,7 +153,7 @@ class CosIngSearchLookup:
             if key:
                 self._api_key = key
                 return True
-        except Exception:  # noqa: BLE001 - the secondary source remains available
+        except Exception:
             logger.debug("could not refresh CosIng API key", exc_info=True)
         return False
 
@@ -226,7 +226,7 @@ def gather_evidence(normalized: str, lookups: list[Lookup]) -> list[Evidence]:
             index, lookup = futures[future]
             try:
                 out[index] = future.result()
-            except Exception:  # noqa: BLE001 - one flaky source must not fail intake
+            except Exception:
                 logger.warning("%s lookup failed for %r", lookup.source, normalized, exc_info=True)
                 out[index] = Evidence(source=lookup.source, found=False)
     return [ev for ev in out if ev is not None]
@@ -351,17 +351,17 @@ def _find_api_key(payload: Any) -> str | None:
 
 
 def _extract_h1(text: str) -> str | None:
-    match = re.search(r"<h1[^>]*>(.*?)</h1>", text, re.I | re.S)
+    match = re.search(r"<h1[^>]*>(.*?)</h1>", text, re.IGNORECASE | re.DOTALL)
     return _strip_html(match.group(1)) or None if match else None
 
 
 def _extract_title(text: str) -> str | None:
-    match = re.search(r"<title[^>]*>(.*?)</title>", text, re.I | re.S)
+    match = re.search(r"<title[^>]*>(.*?)</title>", text, re.IGNORECASE | re.DOTALL)
     if not match:
         return None
     title = _strip_html(match.group(1))
     title = title.split("|", 1)[0].strip()
-    title = re.sub(r"\s*\(Explained \+ Products\)\s*$", "", title, flags=re.I)
+    title = re.sub(r"\s*\(Explained \+ Products\)\s*$", "", title, flags=re.IGNORECASE)
     return title or None
 
 
@@ -374,5 +374,5 @@ def _page_canonical(text: str) -> str | None:
 
 
 def _first_ingredient_link(text: str) -> str | None:
-    match = re.search(r'href=["\']([^"\']*/ingredients/[^"\'#?]+)', text, re.I)
+    match = re.search(r'href=["\']([^"\']*/ingredients/[^"\'#?]+)', text, re.IGNORECASE)
     return match.group(1) if match else None

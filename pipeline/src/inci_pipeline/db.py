@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Any, Literal
 from uuid import UUID
@@ -478,7 +478,7 @@ def ingestion_run(stage: str, metadata: dict[str, Any] | None = None):
         client().table("ingestion_runs").update(
             {
                 "status": "success",
-                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "finished_at": datetime.now(UTC).isoformat(),
                 "rows_in": counters["rows_in"],
                 "rows_upserted": counters["rows_upserted"],
             }
@@ -487,7 +487,7 @@ def ingestion_run(stage: str, metadata: dict[str, Any] | None = None):
         client().table("ingestion_runs").update(
             {
                 "status": "failed",
-                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "finished_at": datetime.now(UTC).isoformat(),
                 "rows_in": counters["rows_in"],
                 "rows_upserted": counters["rows_upserted"],
                 "error": f"{type(exc).__name__}: {exc}"[:2000],

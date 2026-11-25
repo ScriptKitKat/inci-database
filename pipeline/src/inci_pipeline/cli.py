@@ -3,14 +3,25 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import typer
 
 from .config import settings
 
 app = typer.Typer(help="INCI database pipeline.")
+
+_EXPORT_OUT = typer.Option(
+    Path("../data/editorial_inbox"),
+    "--out",
+    help="Directory to write <slug>.prompt.md files into.",
+)
+_IMPORT_IN = typer.Option(
+    Path("../data/editorial_inbox"),
+    "--in",
+    help="Directory containing <slug>.json response files.",
+)
 
 
 def _configure_logging() -> None:
@@ -84,11 +95,7 @@ def match(token: str) -> None:
 
 @app.command("export-editorial-prompts")
 def export_editorial_prompts(
-    out_dir: Path = typer.Option(
-        Path("../data/editorial_inbox"),
-        "--out",
-        help="Directory to write <slug>.prompt.md files into.",
-    ),
+    out_dir: Path = _EXPORT_OUT,
 ) -> None:
     """Write one prompt file per curated ingredient for the manual
     Claude.ai / ChatGPT paste workflow. Save each AI response back as
@@ -101,11 +108,7 @@ def export_editorial_prompts(
 
 @app.command("import-editorial")
 def import_editorial(
-    in_dir: Path = typer.Option(
-        Path("../data/editorial_inbox"),
-        "--in",
-        help="Directory containing <slug>.json response files.",
-    ),
+    in_dir: Path = _IMPORT_IN,
     reviewer: str = typer.Option(
         "manual",
         "--reviewer",

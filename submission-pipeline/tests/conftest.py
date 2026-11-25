@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -12,8 +13,8 @@ os.environ.setdefault("SUPABASE_URL", "http://localhost:54321")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-key")
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-anthropic-key")
 
-from submission_pipeline import db as db_mod  # noqa: E402
-from submission_pipeline.config import settings  # noqa: E402
+from submission_pipeline import db as db_mod
+from submission_pipeline.config import settings
 
 
 @pytest.fixture(autouse=True)
@@ -228,9 +229,7 @@ class FakeDB:
         return 0
 
     def release_stale_claims(self, status, older_than_minutes):
-        from datetime import datetime, timedelta, timezone
-
-        cutoff = (datetime.now(timezone.utc) - timedelta(minutes=older_than_minutes)).isoformat()
+        cutoff = (datetime.now(UTC) - timedelta(minutes=older_than_minutes)).isoformat()
         out = {"released": 0, "failed": 0}
         max_attempts = settings().max_attempts
         for row in self.submissions.values():

@@ -7,9 +7,9 @@ canonical or alias match.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from functools import lru_cache
-import re
 from uuid import UUID
 
 from supabase import Client, create_client

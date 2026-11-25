@@ -5,8 +5,8 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from submission_pipeline.stages import verify
 from submission_pipeline.models import Hypothesis, TokenJudgment
+from submission_pipeline.stages import verify
 
 
 def _token(evidence_rows: list[dict[str, Any]]) -> dict[str, Any]:

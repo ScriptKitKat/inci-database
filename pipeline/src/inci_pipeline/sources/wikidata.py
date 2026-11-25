@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
+from typing import Self
 
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -44,7 +45,7 @@ class WikidataClient:
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "WikidataClient":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_: object) -> None:

@@ -51,7 +51,7 @@ def run(force: bool = False, process_all: bool = False) -> None:
                     abstracts=abstracts,
                 )
             except Exception as exc:
-                log.warning("editorial failed for %s: %s", row["inci_name"], exc)
+                log.warning("editorial failed for %s: %s", row["inci_name"], exc, exc_info=True)
                 continue
 
             client().table("ingredient_writeups").upsert(
