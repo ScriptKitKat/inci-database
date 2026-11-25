@@ -62,6 +62,7 @@ def run(force: bool = False, process_all: bool = False) -> None:
                         url=abstract.url,
                         title=abstract.title,
                         raw_payload={
+                            "pmid": abstract.pmid,
                             "abstract": abstract.abstract,
                             "journal": abstract.journal,
                             "year": abstract.year,
