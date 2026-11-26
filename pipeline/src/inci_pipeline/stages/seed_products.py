@@ -15,11 +15,11 @@ from ..db import (
     client,
     fetch_exact_match_index,
     fetch_existing_product_slugs,
-    ingestion_run,
     reset_client,
 )
 from ..normalize import normalize_brand_name, normalize_name, slug, tokenize_label
 from ..sources.open_beauty_facts import stream
+from .run_logging import log_stage_run
 
 log = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ def run(force: bool = False) -> None:
     existing_product_slugs = fetch_existing_product_slugs()
     log.info("loaded %s existing product slugs for resume", len(existing_product_slugs))
 
-    with ingestion_run(STAGE) as counters:
+    with log_stage_run(STAGE) as counters:
         for product in stream(path):
             brand = _canonical_brand(product.brand)
             if not product.name or not brand or not product.ingredients_text:

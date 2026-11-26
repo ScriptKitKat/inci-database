@@ -13,12 +13,12 @@ from uuid import UUID
 
 from ..db import (
     AliasRow,
-    ingestion_run,
     patch_ingredient_information,
     stream_ingredients_with_cas,
     upsert_aliases,
 )
 from ..sources.pubchem import PubChemClient
+from .run_logging import log_stage_run
 
 log = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ RATE_DELAY = 0.25  # ~4 req/sec, safely under PubChem's 5/sec cap
 
 
 def run(force: bool = False) -> None:
-    with ingestion_run(STAGE) as counters, PubChemClient() as pub:
+    with log_stage_run(STAGE) as counters, PubChemClient() as pub:
         alias_batch: list[AliasRow] = []
         for row in stream_ingredients_with_cas():
             counters["rows_in"] += 1

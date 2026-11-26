@@ -16,8 +16,9 @@ from uuid import UUID
 
 import orjson
 
-from ..db import client, ingestion_run
+from ..db import client
 from ..llm.claude import parse_editorial_response
+from .run_logging import log_stage_run
 
 log = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ def run(in_dir: Path, reviewer: str = "manual") -> None:
     failures: list[tuple[str, str]] = []
     succeeded: list[str] = []
 
-    with ingestion_run(STAGE, metadata={"reviewer": reviewer}) as counters:
+    with log_stage_run(STAGE, metadata={"reviewer": reviewer}) as counters:
         for path in json_files:
             counters["rows_in"] += 1
             slug = path.stem

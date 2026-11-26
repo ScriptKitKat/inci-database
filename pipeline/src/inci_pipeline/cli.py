@@ -58,7 +58,7 @@ def run(
         ...,
         help="obf-taxonomy | wikidata | pubchem | obf-aliases | pubmed | editorial | classify | products",
     ),
-    force: bool = typer.Option(False, "--force", help="Bypass last-success guard."),
+    force: bool = typer.Option(False, "--force", help="Kept for compatibility; has no effect."),
     process_all: bool = typer.Option(
         False,
         "--all",

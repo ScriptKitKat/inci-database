@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import logging
 
-from ..db import client, ingestion_run
+from ..db import client
+from .run_logging import log_stage_run
 
 log = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ _FUNCTION_TO_CONCERN = {
 
 
 def run(force: bool = False) -> None:
-    with ingestion_run(STAGE) as counters:
+    with log_stage_run(STAGE) as counters:
         offset = 0
         page = 500
         while True:

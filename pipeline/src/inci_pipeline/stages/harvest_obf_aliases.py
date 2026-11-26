@@ -16,10 +16,11 @@ from collections import Counter
 from pathlib import Path
 
 from ..config import settings
-from ..db import AliasRow, ingestion_run, upsert_aliases
+from ..db import AliasRow, upsert_aliases
 from ..matching.match import match_token
 from ..normalize import normalize_name, tokenize_label
 from ..sources.open_beauty_facts import stream
+from .run_logging import log_stage_run
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ def run(force: bool = False) -> None:
     seen_aliases: set[tuple[str, str]] = set()
     alias_batch: list[AliasRow] = []
 
-    with ingestion_run(STAGE, metadata={"threshold": threshold}) as counters:
+    with log_stage_run(STAGE, metadata={"threshold": threshold}) as counters:
         for product in stream(path):
             if not product.ingredients_text:
                 continue

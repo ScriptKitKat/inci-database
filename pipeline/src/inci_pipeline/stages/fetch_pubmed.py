@@ -14,12 +14,12 @@ from uuid import UUID
 from ..config import settings
 from ..db import (
     SourceRow,
-    ingestion_run,
     stream_curated_ingredients,
     stream_ingredients_with_cas,
     upsert_sources,
 )
 from ..sources.pubmed import PubMedClient
+from .run_logging import log_stage_run
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ def run(force: bool = False, process_all: bool = False) -> None:
         else stream_curated_ingredients(require_cas=True)
     )
 
-    with ingestion_run(STAGE, metadata={"curated_only": not process_all}) as counters, \
+    with log_stage_run(STAGE, metadata={"curated_only": not process_all}) as counters, \
          PubMedClient(api_key=s.ncbi_api_key) as pm:
         source_batch: list[SourceRow] = []
         for row in source_stream:
