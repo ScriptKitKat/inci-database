@@ -87,7 +87,7 @@ inci-pipeline match "salycilic acid"   # typo, should still hit Salicylic Acid
 | 6   | classify | `ingredient_information.functions` | `ingredient_information.additional_information` |
 | 7   | products | OBF dump | `brands`, `products`, `product_ingredients` |
 
-All stages are idempotent — re-run with `--force` to bypass the last-success guard.
+All stages are idempotent. Run totals are written to the pipeline logs.
 
 ### Why no CosIng
 

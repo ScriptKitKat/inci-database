@@ -17,13 +17,13 @@ from ..db import (
     AliasRow,
     IngredientRow,
     SourceRow,
-    ingestion_run,
     upsert_aliases,
     upsert_ingredients,
     upsert_sources,
 )
 from ..normalize import normalize_name, slug_with_fallback
 from ..sources import obf_taxonomy
+from .run_logging import log_stage_run
 
 log = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ def run(force: bool = False) -> None:
             f"https://raw.githubusercontent.com/openfoodfacts/openbeautyfacts-server/main/taxonomies/ingredients.txt"
         )
 
-    with ingestion_run(STAGE, metadata={"file": str(path)}) as counters:
+    with log_stage_run(STAGE, metadata={"file": str(path)}) as counters:
         ingredient_rows: list[IngredientRow] = []
         # We need ingredient_id (after upsert) before we can insert
         # aliases and sources, so we materialise the parse first.

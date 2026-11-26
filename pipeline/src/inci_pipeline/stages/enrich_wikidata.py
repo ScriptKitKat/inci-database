@@ -16,12 +16,12 @@ from uuid import UUID
 
 from ..db import (
     SourceRow,
-    ingestion_run,
     patch_ingredient_information,
     stream_ingredients_with_cas,
     upsert_sources,
 )
 from ..sources.wikidata import WikidataClient, chunked
+from .run_logging import log_stage_run
 
 log = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ def run(force: bool = False) -> None:
     cas_numbers = list(cas_to_ingredient.keys())
     log.info("looking up %d CAS numbers on Wikidata", len(cas_numbers))
 
-    with ingestion_run(STAGE) as counters, WikidataClient() as wd:
+    with log_stage_run(STAGE) as counters, WikidataClient() as wd:
         counters["rows_in"] = len(cas_numbers)
         source_batch: list[SourceRow] = []
 

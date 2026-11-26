@@ -7,18 +7,14 @@ Public-read clients are not used by the pipeline.
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from contextlib import contextmanager
-from datetime import UTC, datetime
 from functools import lru_cache
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel
 from supabase import Client, create_client
 
 from .config import settings
-
-RunStatus = Literal["running", "success", "failed"]
 
 
 class IngredientRow(BaseModel):
@@ -454,59 +450,3 @@ def patch_ingredient_information(
         client().table("ingredient_information").update(update).eq(
             "ingredient_id", str(ingredient_id)
         ).execute()
-
-
-@contextmanager
-def ingestion_run(stage: str, metadata: dict[str, Any] | None = None):
-    """Wrap a stage in an ingestion_runs audit row."""
-    insert = (
-        client()
-        .table("ingestion_runs")
-        .insert(
-            {
-                "stage": stage,
-                "status": "running",
-                "metadata": metadata or {},
-            }
-        )
-        .execute()
-    )
-    run_id = insert.data[0]["id"]
-    counters = {"rows_in": 0, "rows_upserted": 0}
-    try:
-        yield counters
-        client().table("ingestion_runs").update(
-            {
-                "status": "success",
-                "finished_at": datetime.now(UTC).isoformat(),
-                "rows_in": counters["rows_in"],
-                "rows_upserted": counters["rows_upserted"],
-            }
-        ).eq("id", run_id).execute()
-    except Exception as exc:
-        client().table("ingestion_runs").update(
-            {
-                "status": "failed",
-                "finished_at": datetime.now(UTC).isoformat(),
-                "rows_in": counters["rows_in"],
-                "rows_upserted": counters["rows_upserted"],
-                "error": f"{type(exc).__name__}: {exc}"[:2000],
-            }
-        ).eq("id", run_id).execute()
-        raise
-
-
-def last_successful_run(stage: str) -> datetime | None:
-    res = (
-        client()
-        .table("ingestion_runs")
-        .select("finished_at")
-        .eq("stage", stage)
-        .eq("status", "success")
-        .order("finished_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    if not res.data:
-        return None
-    return datetime.fromisoformat(res.data[0]["finished_at"])

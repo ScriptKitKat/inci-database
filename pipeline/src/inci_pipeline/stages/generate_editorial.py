@@ -18,9 +18,9 @@ from ..db import (
     _fetch_curated_ids,
     client,
     fetch_ingredients_for_editorial,
-    ingestion_run,
 )
 from ..llm.claude import EDITORIAL_MODEL, generate_editorial
+from .run_logging import log_stage_run
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ BATCH = 50
 def run(force: bool = False, process_all: bool = False) -> None:
     model_version = f"{EDITORIAL_MODEL}@{date.today().isoformat()}"
 
-    with ingestion_run(
+    with log_stage_run(
         STAGE, metadata={"model": model_version, "curated_only": not process_all}
     ) as counters:
         rows_iter = _all_ingredients() if process_all else _curated_ingredients()
