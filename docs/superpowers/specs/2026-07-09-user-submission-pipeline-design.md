@@ -79,16 +79,16 @@ idempotent; the workflow has a `concurrency` group so runs never overlap.
   `canonical_name` (exact string from an authoritative
   source), compact `evidence` JSONB array (no raw payloads), `resolution_source`
   (`exact_match | deterministic | llm | human`). UNIQUE (submission_id, position).
-- `curators` — user_id allowlist for review access.
+- `curator_reviewers` — private reviewer allowlist for the Curator UI.
 - `submission_audit` — action log (submission_id, action, actor, payload).
 - `ALTER TYPE source_type ADD VALUE 'user_submission'` for alias provenance.
 
-RPCs (SECURITY DEFINER; mutations require service role or curators membership):
+RPCs (SECURITY DEFINER; mutations run through the service role):
 
 - `claim_product_submissions(p_status, p_limit)` — SKIP LOCKED claim.
 - `fail_product_submission(p_id, p_error, p_max_attempts = 3)` — retry/fail.
 - `resolve_submission_token(p_token_id, p_resolution, p_ingredient_id, p_canonical_name)` —
-  human token action; validates curator; writes audit.
+  human token action; writes audit.
 - `find_product_formula_match(p_tokens, p_brand_name, p_product_name,
   p_similarity_threshold)` — resolves a queued ingredient sequence to canonical ingredient
   IDs through exact names and validated aliases, then compares it with existing
@@ -107,8 +107,9 @@ RPCs (SECURITY DEFINER; mutations require service role or curators membership):
 - `reject_product_submission(p_id, p_reason, p_actor)`.
 - `purge_stale_submissions(p_days = 30)`.
 
-RLS: submitters INSERT/SELECT own rows; curators SELECT all; no anonymous read; all
-writes beyond INSERT go through RPCs.
+RLS: authenticated submitters INSERT/SELECT their own submissions and SELECT their
+own tokens. No anonymous read. The Curator UI uses the service role on the server
+after checking the reviewer session. Writes beyond INSERT go through RPCs.
 
 ## Decision policy (anti-garbage rules)
 
@@ -164,8 +165,8 @@ spelling.
   (`run [--once]`, `submit`), `tests/`.
 - Models: judgments Sonnet 4.6; descriptions Haiku 4.5.
 
-`review-ui/` (Next.js App Router + TypeScript + Supabase JS + Supabase Auth email OTP;
-curators only; mutations via RPCs only):
+`curator-ui/` (Next.js App Router + TypeScript + Supabase JS; reviewers sign in
+with a shared password and use a signed session; mutations via server-side RPCs):
 
 - `/` — queue of pending_human submissions (brand, product, age, unresolved count).
 - `/submissions/[id]` — evidence header; submitted-vs-online diff when divergent; token

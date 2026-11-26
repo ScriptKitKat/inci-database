@@ -38,6 +38,7 @@ COMMON_DOMAINS_MIGRATION = MIGRATIONS_DIR / "20260714000700_common_trusted_produ
 BATCH_MATCH_MIGRATION = MIGRATIONS_DIR / "20261125050730_match_ingredients_batch.sql"
 BATCH_MATCH_LIMIT_MIGRATION = MIGRATIONS_DIR / "20261125051301_limit_ingredient_match_batch.sql"
 CURATED_SEEDER_GRANTS_MIGRATION = MIGRATIONS_DIR / "20261125051302_curated_seeder_insert_grants.sql"
+CURATORS_RATE_LIMITS_MIGRATION = MIGRATIONS_DIR / "20261126210438_drop_curators_rate_limits.sql"
 
 
 def _latest_function_sql(name: str) -> str:
@@ -145,6 +146,22 @@ def test_forward_migration_removes_stored_fingerprints():
     assert "CREATE OR REPLACE FUNCTION find_product_formula_match" in sql
     assert "DROP COLUMN IF EXISTS ingredient_fingerprint" in sql
     assert "DROP TABLE IF EXISTS product_metadata" in sql
+
+
+def test_unused_curator_and_rate_limit_tables_drop_without_changing_submissions():
+    sql = CURATORS_RATE_LIMITS_MIGRATION.read_text()
+    assert "DROP FUNCTION IF EXISTS public.consume_request_rate_limit(TEXT, INTEGER, INTEGER);" in sql
+    assert re.findall(r"DROP TABLE IF EXISTS (.+?);", sql) == [
+        "public.request_rate_limits",
+        "public.curators",
+    ]
+    is_curator = _latest_function_sql("public.is_curator")
+    assert is_curator in sql
+    assert "LANGUAGE sql STABLE SECURITY DEFINER" in is_curator
+    assert "SELECT false;" in is_curator
+    assert "IF auth.uid() IS NOT NULL AND NOT is_curator()" in _latest_function_sql(
+        "assert_curator_or_service"
+    )
 
 
 def test_forward_matcher_is_name_and_brand_aware():
