@@ -4,7 +4,7 @@ export type SearchableIngredient = {
   normalized_name: string;
 };
 
-export type IngredientSuggestion = {
+type IngredientSuggestion = {
   id: string;
   inci_name: string;
   confidence: number;
