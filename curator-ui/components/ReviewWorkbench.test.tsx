@@ -18,7 +18,8 @@ vi.mock("@/app/actions", () => ({
   approveSubmissionAction: actions.approve,
   rejectSubmissionAction: actions.reject,
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
+const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
@@ -137,5 +138,19 @@ describe("ReviewWorkbench token controls", () => {
     ));
     expect(screen.getByText("Glycerin")).toBeInTheDocument();
     expect(screen.getByText("matched")).toBeInTheDocument();
+  });
+
+  it("stays on the submission when approval sends it back for review", async () => {
+    const initial = detail(29);
+    initial.submission.verification = { verdict: "verified" };
+    initial.tokens[0].resolution = "matched";
+    actions.approve.mockResolvedValueOnce({ ok: true, result: "pending_human" });
+    render(<ReviewWorkbench initial={initial}><div>Header</div></ReviewWorkbench>);
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("still needs review");
+    expect(router.refresh).toHaveBeenCalled();
+    expect(router.push).not.toHaveBeenCalled();
   });
 });

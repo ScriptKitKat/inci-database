@@ -69,6 +69,12 @@ export function ReviewWorkbench({ initial, children }: { initial: DetailData; ch
       setError(`This submission duplicates an existing product${result.productId ? ` (${result.productId})` : ""}.`);
       return;
     }
+    if (result.result === "pending_human") {
+      setApproveConfirmed(false);
+      setError("This submission still needs review. Check the updated warnings before approving again.");
+      router.refresh();
+      return;
+    }
     router.push("/"); router.refresh();
   }
 

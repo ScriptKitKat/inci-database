@@ -120,6 +120,7 @@ export async function approveSubmissionAction(id: string): Promise<Result> {
     return { ok: true, result: "duplicate", productId: submission?.product_id || undefined };
   }
   revalidatePath("/");
+  revalidatePath(`/submissions/${id}`);
   return { ok: true, result: String(data) };
 }
 

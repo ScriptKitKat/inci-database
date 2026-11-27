@@ -88,7 +88,7 @@ def test_apply_has_junk_and_race_guards():
     assert "resolution <> 'junk'" in sql
     assert "jsonb_build_object('trigger', 'all_tokens_junk')" in sql
     assert "RETURN 'pending_human'" in sql
-    assert "pg_advisory_xact_lock(hashtext(v_formula_lock))" in sql
+    assert "'product:' || v_brand_norm" in sql
     assert "formula.ingredient_ids = v_formula_ingredient_ids" in sql
     assert "'ingredient:' || inci_normalize(t.canonical_name)" in sql
 
@@ -106,6 +106,13 @@ def test_apply_only_collapses_same_product_identity():
     assert "formula.ingredient_ids = v_formula_ingredient_ids" in sql
     assert "inci_normalize(trim(p.name))" in sql
     assert "upper(trim(b.name)) = upper(trim(s.brand_name))" in sql
+
+
+def test_apply_escalates_unreviewed_same_identity_products():
+    sql = _latest_function_sql("apply_product_submission")
+    assert "i.normalized_name = inci_normalize(st.canonical_name)" in sql
+    assert "find_product_by_identity(s.brand_name, s.product_name)" in sql
+    assert "'same_name_different_formula'" in sql
 
 
 def test_end_users_submit_only_through_the_validated_rpc():
