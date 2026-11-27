@@ -1,10 +1,11 @@
 # ETL Ingredients from Products
 
 Standalone ETL for cleaning product-derived ingredient rows after bulk import.
-The root `pipeline/` folder stays focused on seeding/importing data; this folder
-owns normalized-name cleanup, source verification, LLM judging, and apply/audit.
+It handles normalized-name cleanup, source verification, LLM judging, and apply/audit.
 
 ## Setup
+
+For local ingredient matching, save the [Open Beauty Facts ingredient taxonomy](https://raw.githubusercontent.com/openfoodfacts/openfoodfacts-server/main/taxonomies/beauty/ingredients-cosing-obf.txt) as `data/raw/ingredients-cosing-obf.txt` from the repository root.
 
 ```bash
 cd "ETL Ingredients from Products"
