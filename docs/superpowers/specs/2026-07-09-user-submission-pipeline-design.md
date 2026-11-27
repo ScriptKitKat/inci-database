@@ -4,9 +4,9 @@ Date: 2026-07-09 (approved 2026-07-10)
 
 ## Context
 
-The repo has a Supabase schema, a Python seeding pipeline (`pipeline/`), and a
-product-ingredient cleanup ETL (`ETL Ingredients from Products/`). There is no way for an
-end user to submit a product. The goal: users submit a product (brand, name, pasted
+At the time of this design, the repo had a Supabase schema, a now-retired catalog
+seeding pipeline, and a product-ingredient cleanup ETL (`ETL Ingredients from Products/`).
+There was no way for an end user to submit a product. The goal: users submit a product (brand, name, pasted
 ingredient list); the system verifies the product is real, verifies/normalizes every
 ingredient against authoritative sources, escalates ambiguous cases to a human reviewer,
 and only then writes to the public catalog (`brands`, `products`, `product_ingredients`,
@@ -155,7 +155,7 @@ spelling.
 
 `submission-pipeline/` (standalone, package `submission_pipeline`, no cross-folder imports):
 
-- Copied/adapted: `normalize.py` (from `pipeline/`), `evidence.py` (from
+- Copied/adapted: `normalize.py` (from the former catalog seeding pipeline), `evidence.py` (from
   `ETL .../sources/ingredient_verification.py`, plus best-effort CosIng search-UI and
   INCIDecoder lookups), `llm/batch.py` (from `ETL .../curation/llm_batch.py`; parsed
   decisions only, payloads never persisted), `db.py`, `config.py`, `matching.py` (thin
