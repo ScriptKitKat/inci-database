@@ -84,7 +84,3 @@ def remote_client() -> Client | None:
     if not s.remote_supabase_url or not s.remote_supabase_publishable_key:
         return None
     return create_client(s.remote_supabase_url, s.remote_supabase_publishable_key)
-
-
-def reset_remote_client() -> None:
-    remote_client.cache_clear()

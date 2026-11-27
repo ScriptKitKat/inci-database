@@ -4,10 +4,9 @@ generated column so Python matching produces identical results.
 
 from __future__ import annotations
 
-import hashlib
 import re
 import unicodedata
-from collections.abc import Collection, Iterable
+from collections.abc import Collection
 
 from slugify import slugify as _slugify
 
@@ -174,33 +173,8 @@ def slug(inci_name: str) -> str:
     No max_length: some real INCI names (fermentation lysates,
     multi-organism complexes) share long prefixes and truncating to a
     fixed length causes collisions with the UNIQUE constraint.
-    Callers that need collision-proofing on top of this should use
-    `slug_with_fallback`.
     """
     return _slugify(inci_name)
-
-
-def slug_with_fallback(inci_name: str, seen_slugs: set[str]) -> str:
-    """Return a unique slug for `inci_name`, mutating `seen_slugs`.
-
-    If the natural slug is already taken, suffix with a 6-char SHA-1 of
-    the INCI name so the result stays stable across re-runs (the hash
-    is deterministic in `inci_name`).
-    """
-    base = slug(inci_name)
-    candidate = base
-    if candidate in seen_slugs:
-        digest = hashlib.sha1(inci_name.encode("utf-8")).hexdigest()[:6]
-        candidate = f"{base}-{digest}"
-    seen_slugs.add(candidate)
-    return candidate
-
-
-def normalize_brand_name(name: str | None) -> str:
-    """Normalize a product brand for deterministic brand de-duping."""
-    if not name:
-        return ""
-    return _WHITESPACE.sub(" ", name.strip()).upper()
 
 
 def _strip_label_prefix(text: str) -> str:
@@ -420,13 +394,3 @@ def tokenize_label(
         else:
             out.append(token)
     return [p for p in (s.strip() for s in out) if p and not _is_noise_token(p)]
-
-
-def dedupe_preserve_order(items: Iterable[str]) -> list[str]:
-    seen: set[str] = set()
-    out: list[str] = []
-    for it in items:
-        if it not in seen:
-            seen.add(it)
-            out.append(it)
-    return out

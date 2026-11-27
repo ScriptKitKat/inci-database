@@ -28,10 +28,6 @@ def _lookups() -> list[evidence_mod.Lookup]:
     return evidence_mod.default_lookups()
 
 
-def reset_lookups() -> None:
-    _lookups.cache_clear()
-
-
 def run(limit: int | None = None) -> dict[str, int]:
     counters = {
         "claimed": 0,

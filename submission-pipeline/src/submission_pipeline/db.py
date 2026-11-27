@@ -24,10 +24,6 @@ def client() -> Client:
     return create_client(s.supabase_url, s.supabase_service_role_key)
 
 
-def reset_client() -> None:
-    client.cache_clear()
-
-
 # ---------------------------------------------------------------------------
 # Submissions
 # ---------------------------------------------------------------------------
