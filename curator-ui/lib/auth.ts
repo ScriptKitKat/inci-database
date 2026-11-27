@@ -7,7 +7,7 @@ import { serviceClient } from "@/lib/supabase";
 const COOKIE = "curator_session";
 const MAX_AGE = 8 * 60 * 60;
 
-export type CuratorSession = { reviewerId: string; displayName: string; expiresAt: number };
+type CuratorSession = { reviewerId: string; displayName: string; expiresAt: number };
 
 export function normalizeReviewerName(value: string) {
   return value.trim().toLocaleLowerCase().replace(/\s+/g, " ");
@@ -23,12 +23,12 @@ function sign(payload: string) {
   return createHmac("sha256", secret()).update(payload).digest("base64url");
 }
 
-export function encodeSession(session: CuratorSession) {
+function encodeSession(session: CuratorSession) {
   const payload = Buffer.from(JSON.stringify(session)).toString("base64url");
   return `${payload}.${sign(payload)}`;
 }
 
-export function decodeSession(value?: string): CuratorSession | null {
+function decodeSession(value?: string): CuratorSession | null {
   if (!value) return null;
   const [payload, signature] = value.split(".");
   if (!payload || !signature) return null;

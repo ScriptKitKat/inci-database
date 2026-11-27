@@ -1,4 +1,4 @@
-export type Evidence = {
+type Evidence = {
   source: string;
   found: boolean;
   canonical?: string;
@@ -20,7 +20,7 @@ export type SubmissionToken = {
   escalation?: string | null;
 };
 
-export type Submission = {
+type Submission = {
   id: string;
   brand_name: string;
   product_name: string;

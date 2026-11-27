@@ -1,10 +1,10 @@
-export const unresolvedResolutions = new Set(["unresolved", "pending_human"]);
+const unresolvedResolutions = new Set(["unresolved", "pending_human"]);
 
 export function canApprove(tokens: { resolution: string }[]) {
   return tokens.length > 0 && tokens.every((token) => !unresolvedResolutions.has(token.resolution));
 }
 
-export const triggerLabels: Record<string, string> = {
+const triggerLabels: Record<string, string> = {
   similar_product: "Similar formula, different product name",
   same_name_different_formula: "Same product name, different formula",
   divergent_list: "Divergent ingredient list",
