@@ -32,10 +32,6 @@ def anthropic_client() -> Anthropic:
     )
 
 
-def reset_client() -> None:
-    anthropic_client.cache_clear()
-
-
 def submit_batch(requests: list[dict[str, Any]]) -> str:
     """Submit [{custom_id, params}] and return the Anthropic batch id."""
     ids = [request["custom_id"] for request in requests]
