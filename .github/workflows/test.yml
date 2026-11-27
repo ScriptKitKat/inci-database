@@ -25,6 +25,18 @@ jobs:
           ruff check src tests
           pytest -q
 
+  database:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.107.0
+      - name: Replay migrations
+        run: supabase db start
+      - name: Database tests
+        run: supabase test db
+
   curator-ui:
     runs-on: ubuntu-latest
     steps:

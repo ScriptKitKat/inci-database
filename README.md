@@ -42,4 +42,4 @@ select * from match_ingredient('Sodium Hyaluronate');
 
 ## Notes on rating
 
-`ingredient_information.rating` (`superhero`, `great`, `average`, `not_good`, `bad`) is a human editorial judgment. Set it via the Supabase dashboard.
+`ingredient_information.rating` (`ew_ew`, `okie`, `yippe`, `wowza`) is a human editorial judgment. Set it via the Supabase dashboard.
