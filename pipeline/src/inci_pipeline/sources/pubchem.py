@@ -8,9 +8,7 @@ Lookup flow per ingredient:
 `xref/RN` is the documented namespace for CAS Registry Numbers. The
 shorter `cas/{cas}/...` form is not a real namespace and returns 400.
 
-PubChem allows ~5 req/sec without an API key. Retries only fire on
-network errors and 5xx -- a 400 (bad CAS, redacted record, etc.)
-returns None immediately so we don't burn the rate budget.
+PubChem allows ~5 req/sec without an API key.
 """
 
 from __future__ import annotations
@@ -24,12 +22,6 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 BASE = "https://pubchem.ncbi.nlm.nih.gov/rest/pug"
 log = logging.getLogger(__name__)
-
-
-def _is_retryable(exc: BaseException) -> bool:
-    if isinstance(exc, httpx.HTTPStatusError):
-        return exc.response.status_code >= 500
-    return isinstance(exc, (httpx.TransportError, httpx.TimeoutException))
 
 
 @dataclass(frozen=True)

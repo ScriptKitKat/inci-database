@@ -174,20 +174,6 @@ def upsert_sources(rows: Sequence[SourceRow], chunk: int = 500) -> int:
     return total
 
 
-def fetch_ingredient_id(inci_name: str) -> UUID | None:
-    res = (
-        client()
-        .table("ingredients")
-        .select("id")
-        .eq("inci_name", inci_name)
-        .limit(1)
-        .execute()
-    )
-    if res.data:
-        return UUID(res.data[0]["id"])
-    return None
-
-
 def stream_ingredients_with_cas(page_size: int = 1000) -> Iterable[dict[str, Any]]:
     offset = 0
     while True:
@@ -214,49 +200,6 @@ def stream_ingredients_with_cas(page_size: int = 1000) -> Iterable[dict[str, Any
         if len(rows) < page_size:
             return
         offset += page_size
-
-
-def fetch_normalized_match_terms(page_size: int = 1000) -> set[str]:
-    """Return normalized ingredient and alias terms for label tokenization.
-
-    The product importer uses this to segment malformed all-caps labels that
-    omit commas, preferring the longest known INCI/alias phrase.
-    """
-    terms: set[str] = set()
-    offset = 0
-    while True:
-        res = (
-            client()
-            .table("ingredients")
-            .select("normalized_name")
-            .range(offset, offset + page_size - 1)
-            .execute()
-        )
-        rows = res.data or []
-        for row in rows:
-            if row.get("normalized_name"):
-                terms.add(row["normalized_name"])
-        if len(rows) < page_size:
-            break
-        offset += page_size
-
-    offset = 0
-    while True:
-        res = (
-            client()
-            .table("ingredient_aliases")
-            .select("normalized_alias")
-            .range(offset, offset + page_size - 1)
-            .execute()
-        )
-        rows = res.data or []
-        for row in rows:
-            if row.get("normalized_alias"):
-                terms.add(row["normalized_alias"])
-        if len(rows) < page_size:
-            break
-        offset += page_size
-    return terms
 
 
 def fetch_exact_match_index(page_size: int = 1000) -> dict[str, UUID]:
