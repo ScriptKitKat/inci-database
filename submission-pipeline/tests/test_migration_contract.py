@@ -39,6 +39,7 @@ BATCH_MATCH_MIGRATION = MIGRATIONS_DIR / "20261125050730_match_ingredients_batch
 BATCH_MATCH_LIMIT_MIGRATION = MIGRATIONS_DIR / "20261125051301_limit_ingredient_match_batch.sql"
 CURATED_SEEDER_GRANTS_MIGRATION = MIGRATIONS_DIR / "20261125051302_curated_seeder_insert_grants.sql"
 CURATORS_RATE_LIMITS_MIGRATION = MIGRATIONS_DIR / "20261126210438_drop_curators_rate_limits.sql"
+SUBMIT_RPC_MIGRATION = MIGRATIONS_DIR / "20261127000100_submit_product_submission_rpc.sql"
 
 
 def _latest_function_sql(name: str) -> str:
@@ -105,6 +106,14 @@ def test_apply_only_collapses_same_product_identity():
     assert "formula.ingredient_ids = v_formula_ingredient_ids" in sql
     assert "inci_normalize(trim(p.name))" in sql
     assert "upper(trim(b.name)) = upper(trim(s.brand_name))" in sql
+
+
+def test_end_users_submit_only_through_the_validated_rpc():
+    sql = SUBMIT_RPC_MIGRATION.read_text()
+    assert "DROP POLICY IF EXISTS submissions_insert_own" in sql
+    assert "GRANT EXECUTE ON FUNCTION public.submit_product_submission(TEXT, TEXT, TEXT)\n  TO authenticated" in sql
+    assert "GRANT INSERT" not in sql
+    assert "verification" not in sql.split("GRANT SELECT", 1)[1]
 
 
 def test_curator_resolution_clears_incompatible_stale_fields():
