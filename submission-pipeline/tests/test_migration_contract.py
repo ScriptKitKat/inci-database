@@ -354,3 +354,26 @@ def test_ingredient_enrichment_has_guarded_atomic_rpc_boundaries():
     assert "request_body" not in sql and "response_body" not in sql
     assert "'ingredient_information_filled'" in sql
     assert "'ingredient_description_filled'" in sql
+
+
+def test_ingredient_enrichment_ddl_tolerates_schema_drift():
+    migration = MIGRATIONS_DIR / "20261128000300_ingredient_enrichment.sql"
+    schema = migration.read_text().split("CREATE OR REPLACE FUNCTION", 1)[0]
+    assert "CREATE TABLE IF NOT EXISTS public.ingredient_enrichment_queue" in schema
+    assert "CREATE INDEX IF NOT EXISTS ingredient_enrichment_queue_status_idx" in schema
+    for column in ("anthropic_batch_id", "claim_id", "locked_at", "attempt_count", "review_reason"):
+        assert f"ADD COLUMN IF NOT EXISTS {column}" in schema
+    assert "ALTER COLUMN attempt_count SET DEFAULT 0" in schema
+    assert "ALTER COLUMN attempt_count SET NOT NULL" in schema
+    assert "SET attempt_count = 0 WHERE attempt_count IS NULL" in schema
+    assert "FROM pg_catalog.pg_constraint" in schema
+    assert "c.conrelid = 'public.ingredient_enrichment_queue'::regclass" in schema
+    assert "c.contype = 'c'" in schema
+    assert "a.attnum = ANY(c.conkey)" in schema
+    assert "a.attname = 'status'" in schema
+    assert "FOR v_constraint IN" in schema
+    assert "DROP CONSTRAINT %I" in schema
+    assert "DROP CONSTRAINT ingredient_enrichment_queue_status_check" not in schema
+    assert "ADD CONSTRAINT ingredient_enrichment_queue_status_check" in schema
+    assert "CHECK (attempt_count >= 0)" in schema
+    assert "CHECK (length(review_reason) <= 500)" in schema
