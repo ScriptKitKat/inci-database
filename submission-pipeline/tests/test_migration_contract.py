@@ -40,6 +40,9 @@ BATCH_MATCH_LIMIT_MIGRATION = MIGRATIONS_DIR / "20261125051301_limit_ingredient_
 CURATED_SEEDER_GRANTS_MIGRATION = MIGRATIONS_DIR / "20261125051302_curated_seeder_insert_grants.sql"
 CURATORS_RATE_LIMITS_MIGRATION = MIGRATIONS_DIR / "20261126210438_drop_curators_rate_limits.sql"
 SUBMIT_RPC_MIGRATION = MIGRATIONS_DIR / "20261127000100_submit_product_submission_rpc.sql"
+COSING_REPAIR_MIGRATION = (
+    MIGRATIONS_DIR / "20261128000200_restore_ingredient_cosing_information.sql"
+)
 
 
 def _latest_function_sql(name: str) -> str:
@@ -78,9 +81,42 @@ def test_expanded_cosing_functions_preserve_distinct_roles():
 
 def test_new_ingredients_get_enrichment_shell_and_queue():
     sql = _latest_function_sql("apply_product_submission")
-    assert "UPDATE ingredient_information" in sql
+    assert "information_schema" not in sql
+    assert "SELECT coalesce(e.value -> 'enrichment', '{}'::jsonb)" in sql
+    assert "WHERE e.value ->> 'source' = 'cosing'" in sql
+    assert "AND coalesce((e.value ->> 'found')::boolean, false)" in sql
+    assert (
+        "UPDATE ingredient_information\n"
+        "      SET cosing_information = cosing_information || coalesce(v_cosing, '{}'::jsonb),"
+    ) in sql
+    assert "WHERE ingredient_id = v_ingredient" in sql
     assert "INSERT INTO ingredient_writeups" in sql
     assert "INSERT INTO ingredient_enrichment_queue" in sql
+
+
+def test_cosing_repair_guarantees_schema_before_redefining_apply():
+    sql = COSING_REPAIR_MIGRATION.read_text()
+    schema, apply = sql.split("CREATE OR REPLACE FUNCTION apply_product_submission", 1)
+    assert "ALTER TABLE public.ingredient_information" in schema
+    assert "ADD COLUMN IF NOT EXISTS cosing_information JSONB NOT NULL DEFAULT '{}'::jsonb" in schema
+    assert "IF NOT EXISTS" in schema
+    assert "FROM pg_catalog.pg_constraint" in schema
+    assert "conrelid = 'public.ingredient_information'::regclass" in schema
+    assert "conname = 'ingredient_information_cosing_information_check'" in schema
+    assert "ADD CONSTRAINT ingredient_information_cosing_information_check" in schema
+    assert "CHECK (jsonb_typeof(cosing_information) = 'object')" in schema
+    assert "CREATE INDEX IF NOT EXISTS ingredient_information_cosing_gin" in schema
+    assert "USING GIN (cosing_information)" in schema
+    assert "CREATE INDEX IF NOT EXISTS ingredient_information_cas_idx" in schema
+    assert "((cosing_information ->> 'cas_number'))" in schema
+    assert "WHERE cosing_information ? 'cas_number'" in schema
+    assert _latest_function_sql("apply_product_submission") in sql
+    assert "LANGUAGE plpgsql SECURITY DEFINER\nSET search_path = public" in apply
+    assert (
+        "REVOKE EXECUTE ON FUNCTION apply_product_submission(UUID, TEXT)\n"
+        "  FROM PUBLIC, anon, authenticated;"
+    ) in apply
+    assert "GRANT EXECUTE ON FUNCTION apply_product_submission(UUID, TEXT) TO service_role;" in apply
 
 
 def test_apply_has_junk_and_race_guards():
