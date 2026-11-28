@@ -333,3 +333,24 @@ def test_common_official_product_domains_include_kbeauty_and_makeup():
     assert "('COSRX', 'cosrx.com')" in sql
     assert "('BEAUTY OF JOSEON', 'beautyofjoseon.com')" in sql
     assert "('RARE BEAUTY', 'rarebeauty.com')" in sql
+
+
+def test_ingredient_enrichment_has_guarded_atomic_rpc_boundaries():
+    migration = MIGRATIONS_DIR / "20261128000300_ingredient_enrichment.sql"
+    sql = migration.read_text()
+    for name in ("ingredient_enrichment_context", "claim_ingredient_enrichment",
+                 "attach_ingredient_enrichment_batch", "fetch_ingredient_enrichment_batches",
+                 "apply_ingredient_enrichment", "fail_ingredient_enrichment",
+                 "review_ingredient_enrichment"):
+        definition = _latest_function_sql(f"public.{name}")
+        assert "SECURITY DEFINER" in definition
+        assert "SET search_path = public" in definition
+        assert "PERFORM assert_curator_or_service()" in definition
+        assert f"REVOKE ALL ON FUNCTION public.{name}" in sql
+        assert f"GRANT EXECUTE ON FUNCTION public.{name}" in sql
+    assert "FOR UPDATE SKIP LOCKED" in sql
+    assert "p_claim_id" in sql and "stale_enrichment_claim" in sql
+    assert "'pending_human'" in sql
+    assert "request_body" not in sql and "response_body" not in sql
+    assert "'ingredient_information_filled'" in sql
+    assert "'ingredient_description_filled'" in sql
