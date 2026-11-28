@@ -9,7 +9,6 @@ inci-database/
   supabase/migrations/             # database schema and RPCs
   submission-pipeline/             # product submission verification worker
   curator-ui/                     # manual submission review app
-  ETL Ingredients from Products/  # standalone cleanup tooling
   .github/workflows/              # submission worker and PR checks
 ```
 
