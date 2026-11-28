@@ -97,3 +97,18 @@ export async function getSubmissionDetail(id: string): Promise<DetailData> {
     null;
   return { submission, tokens, trigger, approvedSourceDomain, similarProduct } as DetailData;
 }
+
+export async function getIngredientReviewQueue() {
+  await requireCuratorSession();
+  const { data, error } = await serviceClient()
+    .from("ingredient_enrichment_queue")
+    .select("ingredient_id, review_reason, ingredients(inci_name)")
+    .eq("status", "pending_human")
+    .order("created_at");
+  if (error) throw error;
+  return (data || []).map((row) => ({
+    ingredientId: row.ingredient_id as string,
+    name: (row.ingredients as unknown as { inci_name: string } | null)?.inci_name || "Unknown ingredient",
+    reason: row.review_reason as string | null,
+  }));
+}

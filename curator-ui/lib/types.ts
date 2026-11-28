@@ -38,3 +38,9 @@ export type DetailData = {
   approvedSourceDomain: string | null;
   similarProduct: { id: string; name: string; brand: string } | null;
 };
+
+export type IngredientReview = {
+  ingredientId: string;
+  name: string;
+  reason: string | null;
+};

@@ -413,3 +413,50 @@ def set_product_description_if_missing(product_id: str, description: str) -> Non
     client().table("products").update({"short_description": description}).eq("id", product_id).is_(
         "short_description", "null"
     ).execute()
+
+
+def claim_enrichment(claim_id: str, limit: int) -> list[dict[str, Any]]:
+    s = settings()
+    return client().rpc("claim_ingredient_enrichment", {
+        "p_claim_id": claim_id, "p_limit": limit, "p_max_attempts": s.max_attempts,
+        "p_stale_minutes": s.stale_claim_minutes,
+        "p_batch_stale_minutes": s.enrich_batch_stale_minutes,
+    }).execute().data or []
+
+
+def fetch_enrichment_batches() -> list[dict[str, Any]]:
+    return client().rpc("fetch_ingredient_enrichment_batches").execute().data or []
+
+
+def fetch_enrichment_context(ingredient_id: str) -> dict[str, Any]:
+    return client().rpc("ingredient_enrichment_context", {
+        "p_ingredient_id": ingredient_id,
+    }).execute().data
+
+
+def attach_enrichment_batch(claim_id: str, batch_id: str, count: int) -> None:
+    client().rpc("attach_ingredient_enrichment_batch", {
+        "p_claim_id": claim_id, "p_batch_id": batch_id, "p_count": count,
+    }).execute()
+
+
+def fail_enrichment(row: dict[str, Any], reason: str) -> None:
+    client().rpc("fail_ingredient_enrichment", {
+        "p_ingredient_id": row["ingredient_id"], "p_claim_id": row["claim_id"],
+        "p_reason": reason, "p_max_attempts": settings().max_attempts,
+    }).execute()
+
+
+def review_enrichment(row: dict[str, Any], reason: str) -> None:
+    client().rpc("review_ingredient_enrichment", {
+        "p_ingredient_id": row["ingredient_id"], "p_claim_id": row["claim_id"],
+        "p_reason": reason,
+    }).execute()
+
+
+def apply_enrichment(row: dict[str, Any], payload: dict[str, Any]) -> str:
+    return client().rpc("apply_ingredient_enrichment", {
+        "p_ingredient_id": row["ingredient_id"], "p_claim_id": row["claim_id"],
+        "p_payload": payload, "p_threshold": settings().enrich_confidence_threshold,
+        "p_max_attempts": settings().max_attempts,
+    }).execute().data
