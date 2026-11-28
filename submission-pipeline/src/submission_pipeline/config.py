@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,6 +20,10 @@ class Settings(BaseSettings):
     judge_temperature: float = 0.0
     describe_model: str = "claude-haiku-4-5-20251001"
     describe_max_tokens: int = 300
+    enrich_claim_limit: int = Field(default=10, ge=1, le=100)
+    enrich_max_tokens: int = Field(default=2000, ge=1)
+    enrich_confidence_threshold: float = Field(default=0.8, ge=0, le=1)
+    enrich_batch_stale_minutes: int = Field(default=2880, ge=1440)
 
     # match_ingredient() returns >=0.98 only for canonical/alias exact hits.
     exact_match_confidence: float = 0.98

@@ -14,7 +14,7 @@ from .config import settings
 
 app = typer.Typer(help="User-submission product verification pipeline.")
 
-STAGE_ORDER = ("poll", "intake", "submit_batch", "apply", "describe", "purge")
+STAGE_ORDER = ("poll", "intake", "submit_batch", "apply", "describe", "enrich", "purge")
 
 
 def _configure_logging() -> None:
@@ -26,7 +26,7 @@ def _configure_logging() -> None:
 
 def _stages() -> dict[str, object]:
     from .stages import apply as apply_stage
-    from .stages import intake, purge, verify
+    from .stages import enrich, intake, purge, verify
 
     return {
         "poll": verify.poll,
@@ -34,6 +34,7 @@ def _stages() -> dict[str, object]:
         "submit_batch": verify.submit,
         "apply": apply_stage.run,
         "describe": apply_stage.describe,
+        "enrich": enrich.run,
         "purge": purge.run,
     }
 
@@ -44,7 +45,7 @@ def run(
         None, "--stage", help="Run a single stage: " + " | ".join(STAGE_ORDER)
     ),
 ) -> None:
-    """Run one worker tick: poll -> intake -> submit_batch -> apply -> describe -> purge."""
+    """Run one worker tick: poll -> intake -> submit_batch -> apply -> describe -> enrich -> purge."""
     _configure_logging()
     stages = _stages()
     if stage is not None:
