@@ -1,13 +1,91 @@
+CREATE TABLE IF NOT EXISTS public.ingredient_enrichment_queue (
+  ingredient_id UUID PRIMARY KEY REFERENCES public.ingredients(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'unfilled',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS ingredient_enrichment_queue_status_idx
+  ON public.ingredient_enrichment_queue (status, created_at);
+
+DO $$
+DECLARE
+  v_role TEXT;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_class
+    WHERE oid = 'public.ingredient_enrichment_queue'::regclass AND relrowsecurity
+  ) THEN
+    ALTER TABLE public.ingredient_enrichment_queue ENABLE ROW LEVEL SECURITY;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_policy
+    WHERE polrelid = 'public.ingredient_enrichment_queue'::regclass
+      AND polcmd IN ('r', '*')
+  ) THEN
+    CREATE POLICY enrichment_queue_public_read ON public.ingredient_enrichment_queue
+      FOR SELECT USING (true);
+  END IF;
+  FOREACH v_role IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+    IF NOT has_table_privilege(v_role, 'public.ingredient_enrichment_queue', 'SELECT') THEN
+      EXECUTE format('GRANT SELECT ON public.ingredient_enrichment_queue TO %I', v_role);
+    END IF;
+  END LOOP;
+END;
+$$;
+
 ALTER TABLE public.ingredient_enrichment_queue
-  ADD COLUMN anthropic_batch_id TEXT,
-  ADD COLUMN claim_id UUID,
-  ADD COLUMN locked_at TIMESTAMPTZ,
-  ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
-  ADD COLUMN review_reason TEXT CHECK (length(review_reason) <= 500),
-  DROP CONSTRAINT ingredient_enrichment_queue_status_check,
-  ADD CONSTRAINT ingredient_enrichment_queue_status_check CHECK (status IN (
-    'unfilled', 'ingredient_information_filled', 'ingredient_description_filled', 'pending_human'
-  ));
+  ADD COLUMN IF NOT EXISTS anthropic_batch_id TEXT,
+  ADD COLUMN IF NOT EXISTS claim_id UUID,
+  ADD COLUMN IF NOT EXISTS locked_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS review_reason TEXT;
+
+UPDATE public.ingredient_enrichment_queue SET attempt_count = 0 WHERE attempt_count IS NULL;
+
+ALTER TABLE public.ingredient_enrichment_queue
+  ALTER COLUMN attempt_count SET DEFAULT 0,
+  ALTER COLUMN attempt_count SET NOT NULL;
+
+DO $$
+DECLARE
+  v_constraint RECORD;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_constraint
+    WHERE conrelid = 'public.ingredient_enrichment_queue'::regclass AND contype = 'c'
+      AND regexp_replace(pg_get_expr(conbin, conrelid), '[[:space:]()]', '', 'g') = 'attempt_count>=0'
+  ) THEN
+    ALTER TABLE public.ingredient_enrichment_queue
+      ADD CONSTRAINT ingredient_enrichment_queue_attempt_count_check CHECK (attempt_count >= 0);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_constraint
+    WHERE conrelid = 'public.ingredient_enrichment_queue'::regclass AND contype = 'c'
+      AND regexp_replace(pg_get_expr(conbin, conrelid), '[[:space:]()]', '', 'g') = 'lengthreview_reason<=500'
+  ) THEN
+    ALTER TABLE public.ingredient_enrichment_queue
+      ADD CONSTRAINT ingredient_enrichment_queue_review_reason_check CHECK (length(review_reason) <= 500);
+  END IF;
+  FOR v_constraint IN
+    SELECT c.conname FROM pg_catalog.pg_constraint c
+    JOIN pg_catalog.pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
+    WHERE c.conrelid = 'public.ingredient_enrichment_queue'::regclass
+      AND c.contype = 'c' AND a.attname = 'status'
+  LOOP
+    EXECUTE format('ALTER TABLE public.ingredient_enrichment_queue DROP CONSTRAINT %I', v_constraint.conname);
+  END LOOP;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_constraint
+    WHERE conrelid = 'public.ingredient_enrichment_queue'::regclass
+      AND conname = 'ingredient_enrichment_queue_status_check'
+  ) THEN
+    ALTER TABLE public.ingredient_enrichment_queue
+      ADD CONSTRAINT ingredient_enrichment_queue_status_check CHECK (status IN (
+        'unfilled', 'ingredient_information_filled', 'ingredient_description_filled', 'pending_human'
+      ));
+  END IF;
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION public.ingredient_enrichment_context(p_ingredient_id UUID)
 RETURNS JSONB
