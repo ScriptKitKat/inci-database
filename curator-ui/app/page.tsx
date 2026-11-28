@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { logoutAction } from "@/app/actions";
 import { requireCuratorSession } from "@/lib/auth";
-import { getQueue } from "@/lib/data";
+import { IngredientReviews } from "./ingredient-reviews";
+import { getIngredientReviewQueue, getQueue } from "@/lib/data";
 import { triggerLabel } from "@/lib/review";
 
 function age(iso: string) {
@@ -10,10 +11,11 @@ function age(iso: string) {
 }
 
 export default async function QueuePage({ searchParams }: { searchParams: Promise<{ trigger?: string; age?: string }> }) {
-  const [session, queue, filters] = await Promise.all([
+  const [session, queue, filters, ingredientReviews] = await Promise.all([
     requireCuratorSession(),
     getQueue(),
     searchParams,
+    getIngredientReviewQueue(),
   ]);
   const triggers = [...new Set(queue.map((row) => row.trigger).filter(Boolean))] as string[];
   const filtered = queue.filter((row) => {
@@ -37,6 +39,7 @@ export default async function QueuePage({ searchParams }: { searchParams: Promis
           {filtered.map((row) => <tr key={row.id}><td><Link href={`/submissions/${row.id}`}>{row.brand_name}</Link></td><td>{row.product_name}</td><td>{age(row.created_at)}</td><td>{triggerLabel(row.trigger)}</td><td><span className="count">{row.unresolved}</span></td></tr>)}
         </tbody></table></div>
       ) : <section className="empty"><h2>{queue.length ? "No submissions match these filters." : "No submissions need review right now."}</h2>{queue.length > 0 && <Link href="/">Clear filters</Link>}</section>}
+      <IngredientReviews rows={ingredientReviews} />
     </main>
   );
 }
